@@ -1,0 +1,14 @@
+﻿# Dependencies
+node_modules/
+vendor/
+
+# Logs & Temp
+*.log
+.DS_Store
+Thumbs.db
+.bak
+
+# Builds & Outputs
+dist/
+build/
+*.tmp
