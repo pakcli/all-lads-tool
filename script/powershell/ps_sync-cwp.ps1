@@ -22,7 +22,7 @@ param(
     [string]$LocalPath = (Get-Location).Path,
 
     [string]$CwpUrl = "",
-    [string]$ChromePath = "C:\Program Files\Google\Chrome\Application\chrome.exe",
+    [string]$ChromePath = "$env:ProgramFiles\Google\Chrome\Application\chrome.exe",
     [string]$Profile = "",
     [string]$ProfileDir = "",
     [int]$Port = 9222,

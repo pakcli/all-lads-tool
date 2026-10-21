@@ -39,6 +39,6 @@ Verifies that required runtimes (Node.js, Python, Git, Playwright) are installed
 ---
 
 ## 3. Implementation Source
-* **Script Location**: [`all-lads-tool/script/powershell/ps_check-dependencies.ps1`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/powershell/ps_check-dependencies.ps1)
-* **Skill Reference**: [`all-lads-tool/skill/dependency-preflight-checker.md`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/skill/dependency-preflight-checker.md)
-* **Rule Compliance**: Complies with [Rule #001 (Zero Hardcoded Variables)](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/rule/001-skills-no-hardcoded-variables.md) and [Rule #000](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/rule/000_main-rule.md).
+* **Script Location**: [`all-lads-tool/script/powershell/ps_check-dependencies.ps1`](..\../script/powershell/ps_check-dependencies.ps1)
+* **Skill Reference**: [`all-lads-tool/skill/dependency-preflight-checker.md`](..\../skill/dependency-preflight-checker.md)
+* **Rule Compliance**: Complies with [Rule #001 (Zero Hardcoded Variables)](..\../rule/001-skills-no-hardcoded-variables.md) and [Rule #000](..\../rule/000_main-rule.md).

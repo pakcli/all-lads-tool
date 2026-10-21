@@ -31,5 +31,5 @@ None (Runs standalone with default configuration).
 ---
 
 ## 3. Implementation Source
-* **Script Location**: [`all-lads-tool/script/javascript/verify-all-elements.js`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/javascript/verify-all-elements.js)
-* **Rule Compliance**: Complies with [Rule #001 (Zero Hardcoded Variables)](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/rule/001-skills-no-hardcoded-variables.md).
+* **Script Location**: [`all-lads-tool/script/javascript/verify-all-elements.js`](..\../script/javascript/verify-all-elements.js)
+* **Rule Compliance**: Complies with [Rule #001 (Zero Hardcoded Variables)](..\../rule/001-skills-no-hardcoded-variables.md).

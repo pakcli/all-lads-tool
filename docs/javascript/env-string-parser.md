@@ -39,5 +39,5 @@ node all-lads-tool/script/javascript/env-string-parser.js path/to/file.js
 ---
 
 ## 3. Implementation Source
-* **Script Location**: [`all-lads-tool/script/javascript/env-string-parser.js`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/javascript/env-string-parser.js)
-* **Skill Reference**: [`all-lads-tool/skill/env-string-statement-parser.md`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/skill/env-string-statement-parser.md)
+* **Script Location**: [`all-lads-tool/script/javascript/env-string-parser.js`](..\../script/javascript/env-string-parser.js)
+* **Skill Reference**: [`all-lads-tool/skill/env-string-statement-parser.md`](..\../skill/env-string-statement-parser.md)

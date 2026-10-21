@@ -63,6 +63,6 @@ Interactive, target-directory-aware Git operations toolkit. Supports managing ei
 ---
 
 ## 4. Implementation Source
-* **Script Location**: [`all-lads-tool/script/powershell/ps_git-manage.ps1`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/powershell/ps_git-manage.ps1)
-* **Legacy Wrapper**: [`all-lads-tool/script/powershell/ps_recover.ps1`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/powershell/ps_recover.ps1)
-* **Rule Compliance**: Complies with [Rule #001 (Zero Hardcoded Variables)](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/rule/001-skills-no-hardcoded-variables.md).
+* **Script Location**: [`all-lads-tool/script/powershell/ps_git-manage.ps1`](..\../script/powershell/ps_git-manage.ps1)
+* **Legacy Wrapper**: [`all-lads-tool/script/powershell/ps_recover.ps1`](..\../script/powershell/ps_recover.ps1)
+* **Rule Compliance**: Complies with [Rule #001 (Zero Hardcoded Variables)](..\../rule/001-skills-no-hardcoded-variables.md).

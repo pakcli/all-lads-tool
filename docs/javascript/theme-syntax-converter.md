@@ -35,5 +35,5 @@ node all-lads-tool/script/javascript/theme-syntax-converter.js --mode css2scss -
 ---
 
 ## 3. Implementation Source
-* **Script Location**: [`all-lads-tool/script/javascript/theme-syntax-converter.js`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/javascript/theme-syntax-converter.js)
-* **Rule Compliance**: Complies with [Rule #001 (Zero Hardcoded Variables)](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/rule/001-skills-no-hardcoded-variables.md).
+* **Script Location**: [`all-lads-tool/script/javascript/theme-syntax-converter.js`](..\../script/javascript/theme-syntax-converter.js)
+* **Rule Compliance**: Complies with [Rule #001 (Zero Hardcoded Variables)](..\../rule/001-skills-no-hardcoded-variables.md).

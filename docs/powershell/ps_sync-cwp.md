@@ -34,5 +34,5 @@ Synchronizes shared clean web project assets, styles, and configurations across 
 ---
 
 ## 3. Implementation Source
-* **Script Location**: [`all-lads-tool/script/powershell/ps_sync-cwp.ps1`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/powershell/ps_sync-cwp.ps1)
-* **Rule Compliance**: Complies with [Rule #001 (Zero Hardcoded Variables)](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/rule/001-skills-no-hardcoded-variables.md).
+* **Script Location**: [`all-lads-tool/script/powershell/ps_sync-cwp.ps1`](..\../script/powershell/ps_sync-cwp.ps1)
+* **Rule Compliance**: Complies with [Rule #001 (Zero Hardcoded Variables)](..\../rule/001-skills-no-hardcoded-variables.md).

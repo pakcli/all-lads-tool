@@ -32,7 +32,7 @@ Dibangun dengan prinsip **The 4 Pillars**, proyek ini menghilangkan ketergantung
 ## 2. Tujuan & Manfaat
 
 ### 🎯 Tujuan Utama
-* **Eliminasi Hardcoded Path**: Menjamin setiap otomasi dapat berpindah mesin dan direktori tanpa error path absolut melalui penegakan [Rule #001](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/rule/001-skills-no-hardcoded-variables.md).
+* **Eliminasi Hardcoded Path**: Menjamin setiap otomasi dapat berpindah mesin dan direktori tanpa error path absolut melalui penegakan [Rule #001](rule/001-skills-no-hardcoded-variables.md).
 * **Single Source of Truth**: Menghubungkan tema visual, build bundle, dan dokumentasi secara sinkron tanpa redundansi.
 * **AI-Human Pair Programming**: Menyediakan *ground-truth skills* dan protokol audit lineage (`.agent.json`) yang dapat dipahami dan dieksekusi baik oleh pengembang manusia maupun agen AI.
 
@@ -84,19 +84,31 @@ all-lads-tool/
 
 ### 🏛️ Pilar 1: `skill/` (AI Skills & Reusable Manuals)
 Kumpulan spesifikasi keahlian yang dapat dimuat (*on-demand*) oleh agen kecerdasan buatan:
-* [`codebase-compliance-audit.md`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/skill/codebase-compliance-audit.md): Protokol dan checklist audit kepatuhan otomatis Rule #000 - #004 & UI/UX ASCII.
-* [`markdown-obsidian-format-compatibility.md`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/skill/markdown-obsidian-format-compatibility.md): Standar Markdown tanpa tanda kutip di frontmatter, wikilinks, dan quick switcher.
-* [`briefing-0x-0x-version.md`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/skill/briefing-0x-0x-version.md): SOP penulisan brief arsitektur versi bertingkat.
-* [`production-bundling-compaction.md`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/skill/production-bundling-compaction.md): Panduan kompilasi dan reduksi bundle produksi.
-* [`bento-layout-playground-skill.md`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/skill/bento-layout-playground-skill.md): Arsitektur playground bento split 60/40.
-* [`playwright-thumbnail-capture.md`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/skill/playwright-thumbnail-capture.md): Prosedur tangkapan layar otomatis cartridge web.
+* [`web-toolkit-cli.md`](skill/web-toolkit-cli.md): Modular Playwright automation engine, DOM/reviews extraction, screen recording & on-page step guide.
+* [`codebase-compliance-audit.md`](skill/codebase-compliance-audit.md): Protokol dan checklist audit kepatuhan otomatis Rule #000 - #005 & UI/UX ASCII.
+* [`markdown-obsidian-format-compatibility.md`](skill/markdown-obsidian-format-compatibility.md): Standar Markdown tanpa tanda kutip di frontmatter, wikilinks, dan quick switcher.
+* [`briefing-0x-0x-version.md`](skill/briefing-0x-0x-version.md): SOP penulisan brief arsitektur versi bertingkat (`0x-0x`).
+* [`production-bundling-compaction.md`](skill/production-bundling-compaction.md): Panduan kompilasi dan reduksi bundle produksi.
+* [`bento-layout-playground-skill.md`](skill/bento-layout-playground-skill.md): Arsitektur playground bento split 60/40.
+* [`playwright-thumbnail-capture.md`](skill/playwright-thumbnail-capture.md): Prosedur tangkapan layar otomatis cartridge web ke format WebP.
+* [`dependency-preflight-checker.md`](skill/dependency-preflight-checker.md): Pre-flight validator dependensi runtime (Node, PowerShell, Python).
+* [`env-string-statement-parser.md`](skill/env-string-statement-parser.md): Engine ekstraksi dan normalisasi variable environment dinamis.
+* [`lifecycle-development.md`](skill/lifecycle-development.md): Manajemen atomic commit lifecycle dan sinkronisasi versioning mikro.
+* [`markdown-build-reporter.md`](skill/markdown-build-reporter.md): Generator laporan build markdown flat dan tabel ringkas.
+* [`uiux-wireframe-via-text-ascii-codeblock.md`](skill/uiux-wireframe-via-text-ascii-codeblock.md): Standar visualisasi wireframe ASCII monospace <= 80 kolom.
+* [`verify-visibility-ui.md`](skill/verify-visibility-ui.md): Validasi DOM element, kontras warna, dan inspeksi layout headless.
 
 ---
 
 ### 🏛️ Pilar 2: `rule/` (Architecture Invariants)
 Hukum tata kelola proyek yang tidak boleh dilanggar:
-* [`000_main-rule.md`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/rule/000_main-rule.md): **Rule #000** — Kategorisasi direktori berdasarkan ekstensi file dan pemisahan logika runtime.
-* [`001-skills-no-hardcoded-variables.md`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/rule/001-skills-no-hardcoded-variables.md): **Rule #001** — Larangan keras hardcoded absolute path (`D:\`, `C:\`); wajib resolusi dinamis berbasis relative path.
+* [`000_main-rule.md`](rule/000_main-rule.md): **Rule #000** — Modular decoupled toolchain invariant & 4 pilar arsitektur.
+* [`001-skills-no-hardcoded-variables.md`](rule/001-skills-no-hardcoded-variables.md): **Rule #001** — Larangan keras hardcoded path (`D:\`, `C:\`, usernames); wajib resolusi dinamis.
+* [`002-mobile-portrait-zero-horizontal-scroll.md`](rule/002-mobile-portrait-zero-horizontal-scroll.md): **Rule #002** — Jaminan zero horizontal scroll pada viewport mobile portrait (360px+).
+* [`003-immutable-theme-css.md`](rule/003-immutable-theme-css.md): **Rule #003** — Immutabilitas file CSS tema produksi (0 edit manual).
+* [`004_naming.md`](rule/004_naming.md): **Rule #004** — Standar penamaan file lowercase kebab-case dan 2-octet versioning (`0x-0x`).
+* [`005_readme-on-root.md`](rule/005_readme-on-root.md): **Rule #005** — Kewajiban master `README.md` pada root repositori proyek.
+* [`009_commit-convention.md`](rule/009_commit-convention.md): **Rule #009** — Standar konvensi commit semantik atomik dan pelacakan lineage.
 
 ---
 
@@ -104,37 +116,37 @@ Hukum tata kelola proyek yang tidak boleh dilanggar:
 Engine otomasi yang dikelompokkan ke dalam 4 folder bahasa/runtime:
 
 #### A. PowerShell (`script/powershell/`) — 13 Scripts
-* [`ps_git-manage.ps1`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/powershell/ps_git-manage.ps1): Universal Git Manager (-1 to 9, target directory aware, drag & drop shell).
-* [`ps_recover.ps1`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/powershell/ps_recover.ps1): Git reflog detached & lost commit recovery wrapper.
-* [`bump-version.ps1`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/powershell/bump-version.ps1): Semantic version tag bumper (v01_01 -> v01_02).
-* [`compile-arctitecture-bundledjs.ps1`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/powershell/compile-arctitecture-bundledjs.ps1): JS module packager & client bundler.
-* [`compile-single-scss-to-css.ps1`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/powershell/compile-single-scss-to-css.ps1): SCSS to CSS theme compiler (1:1 & Obsidian modes).
-* [`compile-single-css-to-scss.ps1`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/powershell/compile-single-css-to-scss.ps1): CSS to SCSS syntax reverse-converter.
-* [`theme-compiler.ps1`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/powershell/theme-compiler.ps1): Master SCSS theme & winget compiler.
-* [`manage-submodule.ps1`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/powershell/manage-submodule.ps1): Git submodule orchestrator (add, sync, update, remove).
-* [`ps_diff-commits.ps1`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/powershell/ps_diff-commits.ps1): Commit size delta & history inspector.
-* [`find-folder-lockers.ps1`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/powershell/find-folder-lockers.ps1): Windows Restart Manager process locker detector.
-* [`ps_open-cwp.ps1`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/powershell/ps_open-cwp.ps1): Clean Web Project isolated workspace opener.
-* [`ps_sync-cwp.ps1`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/powershell/ps_sync-cwp.ps1): Workspace integrity & asset synchronizer.
-* [`start.ps1`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/powershell/start.ps1): Multi-threaded local HTTP server with Wi-Fi IP display.
+* [`ps_git-manage.ps1`](script/powershell/ps_git-manage.ps1): Universal Git Manager (-1 to 9, target directory aware, drag & drop shell).
+* [`ps_recover.ps1`](script/powershell/ps_recover.ps1): Git reflog detached & lost commit recovery wrapper.
+* [`bump-version.ps1`](script/powershell/bump-version.ps1): Semantic version tag bumper (v01_01 -> v01_02).
+* [`compile-arctitecture-bundledjs.ps1`](script/powershell/compile-arctitecture-bundledjs.ps1): JS module packager & client bundler.
+* [`compile-single-scss-to-css.ps1`](script/powershell/compile-single-scss-to-css.ps1): SCSS to CSS theme compiler (1:1 & Obsidian modes).
+* [`compile-single-css-to-scss.ps1`](script/powershell/compile-single-css-to-scss.ps1): CSS to SCSS syntax reverse-converter.
+* [`theme-compiler.ps1`](script/powershell/theme-compiler.ps1): Master SCSS theme & winget compiler.
+* [`manage-submodule.ps1`](script/powershell/manage-submodule.ps1): Git submodule orchestrator (add, sync, update, remove).
+* [`ps_diff-commits.ps1`](script/powershell/ps_diff-commits.ps1): Commit size delta & history inspector.
+* [`find-folder-lockers.ps1`](script/powershell/find-folder-lockers.ps1): Windows Restart Manager process locker detector.
+* [`ps_open-cwp.ps1`](script/powershell/ps_open-cwp.ps1): Clean Web Project isolated workspace opener.
+* [`ps_sync-cwp.ps1`](script/powershell/ps_sync-cwp.ps1): Workspace integrity & asset synchronizer.
+* [`start.ps1`](script/powershell/start.ps1): Multi-threaded local HTTP server with Wi-Fi IP display.
 
 #### B. JavaScript (`script/javascript/`) — 7 Scripts
-* [`audit-codebase.js`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/javascript/audit-codebase.js): Automated codebase compliance auditor for Rule #001, Rule #004, YAML quotes & ASCII wireframes.
-* [`build-bundles.js`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/javascript/build-bundles.js): ES module client bundler.
-* [`capture-app-thumbnails.js`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/javascript/capture-app-thumbnails.js): Playwright automated viewport snapshot engine.
-* [`capture-thumbnails.js`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/javascript/capture-thumbnails.js): Headless screenshot utility.
-* [`theme-syntax-converter.js`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/javascript/theme-syntax-converter.js): Obsidian CSS/SCSS syntax translator.
-* [`verify-all-elements.js`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/javascript/verify-all-elements.js): DOM accessibility, contrast, and element validator.
-* [`test-blink.js`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/javascript/test-blink.js): Terminal blinking cursor tester.
+* [`audit-codebase.js`](script/javascript/audit-codebase.js): Automated codebase compliance auditor for Rule #001, Rule #004, YAML quotes & ASCII wireframes.
+* [`build-bundles.js`](script/javascript/build-bundles.js): ES module client bundler.
+* [`capture-app-thumbnails.js`](script/javascript/capture-app-thumbnails.js): Playwright automated viewport snapshot engine.
+* [`capture-thumbnails.js`](script/javascript/capture-thumbnails.js): Headless screenshot utility.
+* [`theme-syntax-converter.js`](script/javascript/theme-syntax-converter.js): Obsidian CSS/SCSS syntax translator.
+* [`verify-all-elements.js`](script/javascript/verify-all-elements.js): DOM accessibility, contrast, and element validator.
+* [`test-blink.js`](script/javascript/test-blink.js): Terminal blinking cursor tester.
 
 #### C. Python (`script/python/`) — 4 Scripts
-* [`server.py`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/python/server.py): Multi-threaded local development web server.
-* [`screenshot.py`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/python/screenshot.py): Python viewport screenshot utility.
-* [`screenshot_projects.py`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/python/screenshot_projects.py): Batch screenshot capture runner.
-* [`test_blink.py`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/python/test_blink.py): Python terminal font & blink tester.
+* [`server.py`](script/python/server.py): Multi-threaded local development web server.
+* [`screenshot.py`](script/python/screenshot.py): Python viewport screenshot utility.
+* [`screenshot_projects.py`](script/python/screenshot_projects.py): Batch screenshot capture runner.
+* [`test_blink.py`](script/python/test_blink.py): Python terminal font & blink tester.
 
 #### D. Windows Batch (`script/bat/`) — 1 Script
-* [`start-chrome-cwp.bat`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/script/bat/start-chrome-cwp.bat): Isolated Chrome sandbox profile launcher.
+* [`start-chrome-cwp.bat`](script/bat/start-chrome-cwp.bat): Isolated Chrome sandbox profile launcher.
 
 ---
 

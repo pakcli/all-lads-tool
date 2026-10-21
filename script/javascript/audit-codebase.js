@@ -139,7 +139,9 @@ allFiles.forEach(filePath => {
 });
 
 // Audit Rule #005: Root README.md Invariant
-const rootReadmePath = path.join(repoRoot, 'README.md');
+const rootReadmePath = fs.existsSync(path.join(repoRoot, 'README.md'))
+  ? path.join(repoRoot, 'README.md')
+  : path.join(allLadsToolDir, 'README.md');
 if (!fs.existsSync(rootReadmePath)) {
   results.rootReadmeViolations.push('Missing master README.md at repository root.');
 }

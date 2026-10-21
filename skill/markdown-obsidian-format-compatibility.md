@@ -66,7 +66,7 @@ Frontmatter must **never** contain an `id:` property. The unique slug is strictl
 ---
 
 ### 1.5 Invariant 5: Rule #3 (Zero Hardcoded Variables)
-Per [`all-lads-tool/rules/001-skills-no-hardcoded-variables.md`](file:///d:/0pro/fadhlisl-my-id/all-lads-tool/rules/001-skills-no-hardcoded-variables.md):
+Per [`all-lads-tool/rules/001-skills-no-hardcoded-variables.md`](../rules/001-skills-no-hardcoded-variables.md):
 * Never include machine drive letters (`D:\`, `C:\`, `d:/`) in Markdown links or code examples.
 * Use relative navigation: `index.html`, `index_playground.html`, `../_catalog.json`.
 
