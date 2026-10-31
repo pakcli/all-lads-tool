@@ -92,7 +92,7 @@ function Update-MainMenuHtml {
         $files = Get-ChildItem -Path $scriptRoot -Recurse -File | 
             Where-Object { 
                 $_.Name -like "*_stand.*" -or 
-                ($_.Extension -in ".ps1", ".js", ".py", ".sh", ".bat" -and $_.Directory.Name -ne "module" -and $_.Directory.Name -ne "modules")
+                ($_.Extension -in ".ps1", ".js", ".py", ".sh", ".bat", ".cs" -and $_.Directory.Name -ne "module" -and $_.Directory.Name -ne "modules" -and $_.Directory.Name -ne "adapter")
             }
 
         foreach ($f in $files) {

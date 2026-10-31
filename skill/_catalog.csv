@@ -63,3 +63,4 @@ skill,trigger
 "[[delete-permanent]]",always_on
 "[[delete-trashbin-system-not-permanent]]",always_on
 "[[strictly-focus-on-current-staged]]",always_on
+"[[round-of-applause]]",on_demand
