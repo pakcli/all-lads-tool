@@ -2,6 +2,12 @@
 name: architectural-brief-specification
 description: >-
   Standardized protocol for structuring, writing, and maintaining monolithic-to-modular architectural brief documents (brief/vXX-XX_<name>.md) for AI coding assistants. Enforces mandatory sections, frontmatter metadata, Table of Contents (Daftar Isi), single source of truth directory trees, UI/UX monospace text wireframes, ASCII data flow diagrams, zero-backend constraints, code blocks with syntax highlighting, and lifecycle version bump synchronizations.
+pros:
+  - "Standardized execution and reproducible workflow"
+  - "Enforces decoupling and system stability"
+cons:
+  - "Requires upfront discipline and strict specification"
+  - "Restricts ad-hoc unvetted modifications"
 ---
 
 # 📐 Architectural Brief Specification & Authoring Standard
@@ -97,7 +103,7 @@ Always provide an ASCII directory tree with file-level comments separating:
 3. **Production Distribution** (`public/` containing compiled bundles, HTML shells, and compiled catalogs).
 
 ```text
-fadhlisl-my-id/
+sample-project/
 ├── apps/                        # Single Source of Truth (Root Directory)
 │   ├── radiansincostan/         # Self-contained cartridge subfolders
 │   └── vibe-arcade-deck/

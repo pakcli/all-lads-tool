@@ -3,6 +3,12 @@ name: env-string-statement-parser
 description: Standard protocol and automated parser for resolving, replacing, and sanitizing runtime string statements and path boilerplate (__dirname, $PSScriptRoot, Path(__file__), and user machine PII) using main.env and main.json as the Single Source of Truth.
 category: ARCHITECTURE_AND_STANDARDS
 tags: [all-lads-tool, env, sanitizer, zero-pii, path-resolution]
+pros:
+  - "Standardized execution and reproducible workflow"
+  - "Enforces decoupling and system stability"
+cons:
+  - "Requires upfront discipline and strict specification"
+  - "Restricts ad-hoc unvetted modifications"
 ---
 
 # 🌐 Environment String Statement Parser Skill (`env-string-statement-parser`)
@@ -99,8 +105,8 @@ When an AI agent or developer authors, reviews, or refactors code, any statement
 ```text
 +----------------------------------------------------------------------+
 | [FORBIDDEN] Machine-Specific Hardcoded String:                       |
-|   "D:\\0pro\\fadhlisl-my-id\\apps"                                   |
-|   "C:\\Users\\fsl\\AppData\\..."                                     |
+|   "D:\\projects\\sample-repo\\apps"                                   |
+|   "C:\\Users\\<USER>\\AppData\\..."                                   |
 |                                                                      |
 | [COMPLIANT] Sanitized Alias or Env Variable:                         |
 |   path.join(env.ALIAS_ROOT, env.ALIAS_APPS)                          |

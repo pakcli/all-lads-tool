@@ -5,6 +5,12 @@ description: >-
   threshold including 900x900+, 60% Left / 40% Right draggable & expandable split, inverse-dimension
   iframe zoom, collapsible guided steps, conditional Markdown GitHub button, and fault-tolerant
   language-aware Text-to-Speech).
+pros:
+  - "Standardized execution and reproducible workflow"
+  - "Enforces decoupling and system stability"
+cons:
+  - "Requires upfront discipline and strict specification"
+  - "Restricts ad-hoc unvetted modifications"
 ---
 
 # 🍱 Bento Split-Screen Playground Skill (`bento-layout-playground`)

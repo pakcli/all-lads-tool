@@ -1,4 +1,4 @@
-﻿# Dependencies
+# Dependencies
 node_modules/
 vendor/
 
@@ -12,3 +12,13 @@ Thumbs.db
 dist/
 build/
 *.tmp
+
+# Environment & Machine Identifiers (Never commit actual env/caches)
+_run.env
+_run.json
+!_run.env.example
+
+# History & Local State
+*.json
+!package.json
+!tsconfig.json

@@ -3,6 +3,12 @@ name: codebase-compliance-audit
 description: Authoritative protocol and automated checklist for auditing codebase compliance against Rule #000, Rule #001 (Zero Hardcoded Variables), Rule #002 (Mobile Zero Scroll), Rule #003 (Immutable Theme), Rule #004 (Strict Naming), and UI/UX Monospace ASCII standards.
 category: AUDIT_AND_COMPLIANCE
 tags: [all-lads-tool, audit, compliance, verification, quality-gate]
+pros:
+  - "Standardized execution and reproducible workflow"
+  - "Enforces decoupling and system stability"
+cons:
+  - "Requires upfront discipline and strict specification"
+  - "Restricts ad-hoc unvetted modifications"
 ---
 
 # 🛡️ Codebase Compliance Audit Skill (`codebase-compliance-audit`)
@@ -36,7 +42,7 @@ It ensures that all files strictly comply with repository architectural invarian
 * **Check**: No file may contain hardcoded drive letters (`D:\`, `C:\`, `d:/`, `c:/`) or user home directories.
 * **Prohibited**:
   ```javascript
-  const p = 'D:\\0pro\\fadhlisl-my-id\\apps'; // VIOLATION!
+  const p = 'D:\\projects\\sample-repo\\apps'; // VIOLATION (Hardcoded machine path)!
   ```
 * **Required**: Dynamic resolution via relative path traversal:
   ```javascript

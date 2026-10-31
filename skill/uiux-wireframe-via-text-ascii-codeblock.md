@@ -4,6 +4,12 @@ description: >-
   Standardized rules and atomic element grammar for drafting UI/UX wireframes using
   monospace text ASCII/Unicode codeblocks. Enforces strict character-width alignment,
   Rule #2 mobile constraints (<=60 cols), and atomic uncombined element syntax.
+pros:
+  - "Standardized execution and reproducible workflow"
+  - "Enforces decoupling and system stability"
+cons:
+  - "Requires upfront discipline and strict specification"
+  - "Restricts ad-hoc unvetted modifications"
 ---
 
 # 📐 UI/UX Monospace ASCII Wireframe Rules (`uiux-wireframe-via-text-ascii-codeblock`)

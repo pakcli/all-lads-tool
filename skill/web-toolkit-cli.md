@@ -3,6 +3,12 @@ name: web-toolkit-cli
 description: Modular cross-platform developer toolchain and Playwright automation engine for web extraction, headless inspection, video/screenshot recording, and interactive overlay guides.
 category: AUTOMATION_AND_TESTING
 tags: [all-lads-tool, playwright, web-toolkit, extraction, recording, automation]
+pros:
+  - "Standardized execution and reproducible workflow"
+  - "Enforces decoupling and system stability"
+cons:
+  - "Requires upfront discipline and strict specification"
+  - "Restricts ad-hoc unvetted modifications"
 ---
 
 # 🌐 Modular Playwright Web Toolkit CLI Skill (`web-toolkit-cli`)

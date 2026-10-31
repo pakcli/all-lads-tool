@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>All Lads Tool - Universal Drag & Drop Cockpit</title>
+  <style>
+    :root {
+      --bg: #0d1117;
+      --card-bg: #161b22;
+      --border: #30363d;
+      --text: #c9d1d9;
+      --accent: #58a6ff;
+      --accent-hover: #1f6feb;
+      --success: #238636;
+      --warning: #d29922;
+      --danger: #da3633;
+      --drop-active: rgba(88, 166, 255, 0.15);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    body { background-color: var(--bg); color: var(--text); padding: 24px; min-height: 100vh; display: flex; flex-direction: column; gap: 20px; }
+
+    header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
+    h1 { font-size: 1.5rem; color: #fff; display: flex; align-items: center; gap: 10px; }
+    .badge { font-size: 0.75rem; background: var(--border); padding: 4px 8px; border-radius: 12px; color: var(--accent); }
+
+    /* Drop Zone Hero */
+    .drop-hero {
+      border: 2px dashed var(--border);
+      border-radius: 12px;
+      padding: 40px 20px;
+      text-align: center;
+      background: var(--card-bg);
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+    .drop-hero.drag-over {
+      border-color: var(--accent);
+      background: var(--drop-active);
+      transform: scale(1.01);
+    }
+    .drop-hero h2 { font-size: 1.2rem; color: #fff; margin-bottom: 8px; }
+    .drop-hero p { font-size: 0.9rem; color: #8b949e; }
+    .drop-hero input[type="file"] { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
+
+    /* Action Grid */
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      position: relative;
+    }
+    .card-header { display: flex; justify-content: space-between; align-items: center; }
+    .card-title { font-weight: 600; color: #fff; font-size: 1rem; }
+    .card-desc { font-size: 0.85rem; color: #8b949e; line-height: 1.4; flex-grow: 1; }
+
+    .tag { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
+    .tag-file { background: #23863633; color: #3fb950; border: 1px solid #238636; }
+    .tag-repo { background: #1f6feb33; color: #58a6ff; border: 1px solid #1f6feb; }
+    .tag-web { background: #a371f733; color: #bc8cff; border: 1px solid #a371f7; }
+    .tag-3d { background: #d2992233; color: #e3b341; border: 1px solid #d29922; }
+
+    /* File Inspector Tray */
+    .tray {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+      display: none;
+    }
+    .tray.active { display: block; }
+    .tray-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .file-details { font-family: monospace; font-size: 0.85rem; color: var(--accent); }
+
+    .btn {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 8px 14px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s ease;
+    }
+    .btn:hover { background: var(--accent-hover); }
+    .btn-secondary { background: #21262d; border: 1px solid var(--border); color: #c9d1d9; }
+    .btn-secondary:hover { background: #30363d; }
+
+    /* CLI Output Console */
+    .console-box {
+      background: #000;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 12px;
+      font-family: 'Consolas', 'Courier New', monospace;
+      font-size: 0.85rem;
+      color: #3fb950;
+      min-height: 120px;
+      max-height: 250px;
+      overflow-y: auto;
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🛠️ All Lads Tool <span class="badge">Drag & Drop GUI</span></h1>
+    <div>
+      <span style="font-size: 0.85rem; color: #8b949e;">Universal Offline Cockpit</span>
+    </div>
+  </header>
+
+  <!-- Universal Drop Hero -->
+  <div class="drop-hero" id="heroDrop">
+    <input type="file" id="fileInput" multiple>
+    <h2>📥 Drag & Drop Any File / Folder Here</h2>
+    <p>Drop a <strong>.csv</strong> for Frontmatter conversion, a <strong>.ps1</strong> for Dry-Run check, a <strong>.git</strong> folder for Repo management, or 3D/Web assets.</p>
+  </div>
+
+  <!-- Detected File Info Tray -->
+  <div class="tray" id="fileTray">
+    <div class="tray-header">
+      <div>
+        <strong>🎯 Staged Target:</strong> <span class="file-details" id="stagedFileName">None</span>
+        <span id="stagedFileType" style="margin-left: 10px; font-size: 0.8rem; color: #8b949e;"></span>
+      </div>
+      <button class="btn btn-secondary" onclick="clearStagedFile()">Clear</button>
+    </div>
+    <div style="font-size: 0.85rem; color: #8b949e;" id="stagedRecommendation">
+      Recommended actions will be highlighted below based on file type.
+    </div>
+  </div>
+
+  <!-- Actions Context Grid -->
+  <div class="grid">
+    <!-- File Context -->
+    <div class="card" id="card-csv">
+      <div class="card-header">
+        <span class="card-title">📄 CSV → Frontmatter</span>
+        <span class="tag tag-file">FILE</span>
+      </div>
+      <p class="card-desc">Converts CSV tables into clean Obsidian Markdown notes with YAML frontmatter and pipe separation.</p>
+      <button class="btn" onclick="executeTool('csv-to-frontmatter')">Run Conversion</button>
+    </div>
+
+    <!-- Dry-Run Context -->
+    <div class="card" id="card-dryrun">
+      <div class="card-header">
+        <span class="card-title">🛡️ PowerShell Dry-Run</span>
+        <span class="tag tag-file">FILE</span>
+      </div>
+      <p class="card-desc">Simulates a PowerShell script with 0 mutations, rendering ASCII table preview without touching disk.</p>
+      <button class="btn" onclick="executeTool('dry-run-ps1')">Simulate Script</button>
+    </div>
+
+    <!-- Repo Context -->
+    <div class="card" id="card-repo">
+      <div class="card-header">
+        <span class="card-title">📦 Git Manager</span>
+        <span class="tag tag-repo">REPO</span>
+      </div>
+      <p class="card-desc">Inspect commits, safe branch rename, clean reflog recovery, and submodule synchronization.</p>
+      <button class="btn" onclick="executeTool('git-manage')">Open Repo Cockpit</button>
+    </div>
+
+    <!-- Web Context -->
+    <div class="card" id="card-web">
+      <div class="card-header">
+        <span class="card-title">🌐 Bundle & CSS Compiler</span>
+        <span class="tag tag-web">WEBSITE</span>
+      </div>
+      <p class="card-desc">Compact JS modules and compile SCSS/CSS 1:1 with Obsidian vault theme integration.</p>
+      <button class="btn" onclick="executeTool('web-compiler')">Compile Assets</button>
+    </div>
+
+    <!-- 3D Context -->
+    <div class="card" id="card-3d">
+      <div class="card-header">
+        <span class="card-title">🎨 Blender & Unity Bridge</span>
+        <span class="tag tag-3d">3D/GAME</span>
+      </div>
+      <p class="card-desc">Automated FBX batch export, material sync, and game-engine asset import pipeline.</p>
+      <button class="btn" onclick="executeTool('3d-pipeline')">Run 3D Pipeline</button>
+    </div>
+  </div>
+
+  <!-- Realtime Terminal Console Output -->
+  <div>
+    <h3 style="font-size: 0.9rem; margin-bottom: 8px; color: #8b949e;">💻 Dispatcher Output</h3>
+    <div class="console-box" id="consoleOutput">> Ready. Drop any file to begin inspection...</div>
+  </div>
+
+  <script>
+    let activeFile = null;
+
+    const heroDrop = document.getElementById('heroDrop');
+    const fileInput = document.getElementById('fileInput');
+    const fileTray = document.getElementById('fileTray');
+    const stagedFileName = document.getElementById('stagedFileName');
+    const stagedFileType = document.getElementById('stagedFileType');
+    const stagedRecommendation = document.getElementById('stagedRecommendation');
+    const consoleOutput = document.getElementById('consoleOutput');
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      heroDrop.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        heroDrop.classList.add('drag-over');
+      }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      heroDrop.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        heroDrop.classList.remove('drag-over');
+      }, false);
+    });
+
+    heroDrop.addEventListener('drop', (e) => {
+      const dt = e.dataTransfer;
+      const files = dt.files;
+      if (files.length > 0) handleFiles(files);
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) handleFiles(e.target.files);
+    });
+
+    function handleFiles(files) {
+      activeFile = files[0];
+      fileTray.classList.add('active');
+      stagedFileName.textContent = activeFile.name;
+      stagedFileType.textContent = `(${(activeFile.size / 1024).toFixed(1)} KB) - ${activeFile.type || 'Custom Type'}`;
+
+      logConsole(`[DROP DETECTED] File: ${activeFile.name} (${activeFile.size} bytes)`);
+
+      // Smart Recommendation Highlight
+      document.querySelectorAll('.card').forEach(c => c.style.borderColor = 'var(--border)');
+      
+      const ext = activeFile.name.split('.').pop().toLowerCase();
+      if (ext === 'csv') {
+        highlightCard('card-csv', 'Detected CSV table. Ready for Frontmatter conversion.');
+      } else if (ext === 'ps1') {
+        highlightCard('card-dryrun', 'Detected PowerShell script. Ready for Dry-Run simulation.');
+      } else if (ext === 'fbx' || ext === 'blend' || ext === 'obj') {
+        highlightCard('card-3d', 'Detected 3D asset. Ready for 3D/Unity pipeline.');
+      } else if (ext === 'scss' || ext === 'css' || ext === 'js') {
+        highlightCard('card-web', 'Detected Web asset. Ready for bundling/compiling.');
+      } else {
+        stagedRecommendation.textContent = `Target staged: Ready to dispatch across any available tool.`;
+      }
+    }
+
+    function highlightCard(cardId, message) {
+      const card = document.getElementById(cardId);
+      if (card) {
+        card.style.borderColor = 'var(--accent)';
+        stagedRecommendation.innerHTML = `<span style="color: var(--accent);">⚡ ${message}</span>`;
+      }
+    }
+
+    function clearStagedFile() {
+      activeFile = null;
+      fileTray.classList.remove('active');
+      document.querySelectorAll('.card').forEach(c => c.style.borderColor = 'var(--border)');
+      logConsole('[RESET] Staged file cleared.');
+    }
+
+    function logConsole(msg) {
+      consoleOutput.textContent += `\n${msg}`;
+      consoleOutput.scrollTop = consoleOutput.scrollHeight;
+    }
+
+    function executeTool(toolName) {
+      if (!activeFile) {
+        logConsole(`[INFO] Executing ${toolName} with default workspace targets...`);
+      } else {
+        logConsole(`[DISPATCH] Executing ${toolName} on target: ${activeFile.name}...`);
+      }
+      
+      // PowerShell CLI command string ready to copy or dispatch
+      const cliCmd = activeFile 
+        ? `.\\_run.ps1 -Target "${activeFile.name}" -Action "${toolName}"`
+        : `.\\_run.ps1 -Action "${toolName}"`;
+
+      logConsole(`[CLI COMMAND GENERATED]:\n  ${cliCmd}`);
+    }
+  </script>
+</body>
+</html>

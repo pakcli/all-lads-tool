@@ -2,6 +2,12 @@
 name: playwright-thumbnail-capture
 description: >-
   Modular Playwright desktop view thumbnail capture skill. Automatically scans standalone app cartridges from public/apps/_catalog.json and renders crisp 1280x800 desktop screenshots saved directly inside public/assets/thumbnails/<standalonename>.webp with ultra-compact compression and zero hardcoded paths.
+pros:
+  - "Standardized execution and reproducible workflow"
+  - "Enforces decoupling and system stability"
+cons:
+  - "Requires upfront discipline and strict specification"
+  - "Restricts ad-hoc unvetted modifications"
 ---
 
 # 📸 Modular Playwright Desktop Thumbnail Capture Skill (`playwright-thumbnail-capture`)

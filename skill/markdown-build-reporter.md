@@ -5,6 +5,12 @@ description: >-
   Features YAML frontmatter metadata, heading-based app brief with 3 openable files (HTML, lightmode WebP,
   darkmode WebP), Obsidian wikilink properties, 4 core build sizes, clean retro ASCII architecture diagrams,
   and embedded CSV audit logs in fenced codeblocks.
+pros:
+  - "Standardized execution and reproducible workflow"
+  - "Enforces decoupling and system stability"
+cons:
+  - "Requires upfront discipline and strict specification"
+  - "Restricts ad-hoc unvetted modifications"
 ---
 
 # 📊 Markdown Build Reporter (Frontmatter, Apps Brief, 4 Sizes, ASCII & CSV)
@@ -75,7 +81,7 @@ commit:
 # 🕹️ Vintage Computing Arcade — Production Build Report
 
 ## 📝 1. Architectural Brief & Build Overview
-* **Project**: Vintage Computing Arcade (`fadhlisl-my-id`)
+* **Project**: `<PROJECT_NAME>`
 * **Timestamp**: ISO-8601 Timestamp
 * **Build Engine**: `src/modules/build-bundle.js` (100% Standalone Core, Zero-Backend)
 * **Architecture Rules**:

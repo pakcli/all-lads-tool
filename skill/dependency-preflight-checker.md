@@ -3,6 +3,12 @@ name: dependency-preflight-checker
 description: Protocol and automated PowerShell preflight engine that verifies runtime dependencies (Node.js, Python, Git, Playwright) and offers automated download/installation before executing any optional toolchain script.
 category: RUNTIME_AND_DEPENDENCIES
 tags: [all-lads-tool, dependencies, preflight, powershell, automation]
+pros:
+  - "Standardized execution and reproducible workflow"
+  - "Enforces decoupling and system stability"
+cons:
+  - "Requires upfront discipline and strict specification"
+  - "Restricts ad-hoc unvetted modifications"
 ---
 
 # 🔌 Dependency Preflight Checker Skill (`dependency-preflight-checker`)

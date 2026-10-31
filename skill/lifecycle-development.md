@@ -2,11 +2,17 @@
 name: lifecycle-development
 description: >-
   Enforce granular commit lifecycle management and version bumping (v01_00 baseline -> v01_01 minor commit bump -> v02_00 major milestone bump) for the Vintage Computing Arcade. Use whenever staging changes, creating commits, tagging milestones, or updating architectural briefs.
+pros:
+  - "Standardized execution and reproducible workflow"
+  - "Enforces decoupling and system stability"
+cons:
+  - "Requires upfront discipline and strict specification"
+  - "Restricts ad-hoc unvetted modifications"
 ---
 
 # 🔄 Lifecycle Development & Granular Version Bumping
 
-This skill guides the agent and developer in maintaining a disciplined, granular, atomic commit lifecycle for `fadhlisl-my-id`. Every small change is recorded with an incremental micro-version tag, ensuring transparent progression, zero-ambiguity rollbacks, and synchronized documentation.
+This skill guides the agent and developer in maintaining a disciplined, granular, atomic commit lifecycle. Every small change is recorded with an incremental micro-version tag, ensuring transparent progression, zero-ambiguity rollbacks, and synchronized documentation.
 
 ---
 

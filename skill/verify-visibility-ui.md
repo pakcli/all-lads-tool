@@ -4,6 +4,12 @@ description: >-
   Standardized protocol for verifying UI/UX visibility, visual contrast, state changes,
   and layout integrity using automated headless Chromium screenshots, DOM state injection,
   and zero-scroll viewport audits across Desktop and Mobile viewports.
+pros:
+  - "Standardized execution and reproducible workflow"
+  - "Enforces decoupling and system stability"
+cons:
+  - "Requires upfront discipline and strict specification"
+  - "Restricts ad-hoc unvetted modifications"
 ---
 
 # 👁️ UI/UX Visibility & Visual Integrity Verification Skill (`verify-visibility-ui`)

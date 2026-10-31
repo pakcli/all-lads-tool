@@ -4,6 +4,12 @@ description: >-
   Standardized rules and conventions for authoring Markdown files (.md) with 100% native
   Obsidian compatibility. Enforces zero-quote YAML frontmatters, native wikilinks ([[...]]),
   quick-switcher optimization via aliases, zero-id invariants, and folder-cartridge layouts.
+pros:
+  - "Standardized execution and reproducible workflow"
+  - "Enforces decoupling and system stability"
+cons:
+  - "Requires upfront discipline and strict specification"
+  - "Restricts ad-hoc unvetted modifications"
 ---
 
 # 📓 Obsidian-Compatible Markdown Specification (`markdown-obsidian-format-compatibility`)
@@ -99,7 +105,7 @@ scope: [edu, math, canvas]
 file-size: 6.8 KB
 tags: [arcade, math, zero-backend]
 overview: Interactive trigonometric unit circle calculator. Drag dynamic angle point to solve real-time sin, cos, and tan with exact radical fractions.
-link-github: https://github.com/fadhlisl/fadhlisl-my-id
+link-github: https://github.com/organization/project
 img: [[img-lightmode.webp]], [[img-darkmode.webp]]
 badge: v2.4
 ---
