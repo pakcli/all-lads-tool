@@ -3,11 +3,12 @@
     All Lads Tool - Master Dispatcher & Main Menu
 .DESCRIPTION
     Zero-hardcoded central launcher for all toolchain scripts in all-lads-tool.
-    Organized strictly A-Z by runtime script folder (bash, bat, javascript, powershell, python).
-    Features Red-first RGB color progression, zero-action quick rerun (0),
+    Organized strictly by context according to Canonical v01-03 standard:
+    repo, file, blender, unity, website.
+    Features state persistence in _run.json, interactive target switching [t],
     negative history stack indexing (-1, -2, -3), and deep history viewer (h).
 .PARAMETER TargetDir
-    Target project directory (default: parent workspace).
+    Target project directory (default: parent workspace or saved target in _run.json).
 .PARAMETER ResetVersion
     Directly resets all-lads-tool to a specific version (e.g. 01-01, 01-00) or commit.
 .PARAMETER CheckUpstream
@@ -24,6 +25,7 @@ param(
 
 $scriptDir = $PSScriptRoot
 $parentDir = (Resolve-Path (Join-Path $scriptDir "..")).Path
+$scriptPath = if ($PSCommandPath) { $PSCommandPath } elseif ($MyInvocation.MyCommand.Path) { $MyInvocation.MyCommand.Path } else { Join-Path $scriptDir "_mainmenu.ps1" }
 
 # 1. Identity & Origin: Siapa yang me-launch _mainmenu
 $launcherInfo = if ($LaunchedBy) {
@@ -59,6 +61,7 @@ if ($resolvedRunJson) {
         if ($raw) {
             $parsed = $raw | ConvertFrom-Json
             if ($parsed.activeSlug)     { $appState.activeSlug = $parsed.activeSlug }
+            if ($parsed.targetDir -and (Test-Path -LiteralPath $parsed.targetDir)) { $appState.lastTarget = $parsed.targetDir }
             if ($parsed.allowedDomains) { $appState.allowedDomains = @($parsed.allowedDomains) }
             if ($parsed.history)        { $appState.history = [System.Collections.ArrayList]@($parsed.history) }
         }
@@ -152,154 +155,107 @@ function Update-MainMenuHtml {
       --border: #30363d;
       --text: #c9d1d9;
       --accent: #58a6ff;
-      --accent-hover: #1f6feb;
-      --success: #238636;
-      --warning: #d29922;
-      --danger: #da3633;
-      --drop-active: rgba(88, 166, 255, 0.15);
+      --tag-repo: #bc8cff;
+      --tag-file: #7ee787;
+      --tag-web: #ffa657;
+      --tag-3d: #ff7b72;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
-    body { background-color: var(--bg); color: var(--text); padding: 24px; min-height: 100vh; display: flex; flex-direction: column; gap: 20px; }
-    header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
-    h1 { font-size: 1.5rem; color: #fff; display: flex; align-items: center; gap: 10px; }
-    .badge { font-size: 0.75rem; background: var(--border); padding: 4px 8px; border-radius: 12px; color: var(--accent); }
-    .drop-hero { border: 2px dashed var(--border); border-radius: 12px; padding: 36px 20px; text-align: center; background: var(--card-bg); cursor: pointer; transition: all 0.2s ease; position: relative; }
-    .drop-hero.drag-over { border-color: var(--accent); background: var(--drop-active); transform: scale(1.01); }
-    .drop-hero h2 { font-size: 1.2rem; color: #fff; margin-bottom: 8px; }
-    .drop-hero p { font-size: 0.9rem; color: #8b949e; }
-    .drop-hero input[type="file"] { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 10px; transition: border-color 0.2s ease; }
-    .card-header { display: flex; justify-content: space-between; align-items: center; }
-    .card-title { font-weight: 600; color: #fff; font-size: 0.95rem; }
-    .card-desc { font-size: 0.8rem; color: #8b949e; font-family: monospace; word-break: break-all; }
-    .tag { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
-    .tag-file { background: #23863633; color: #3fb950; border: 1px solid #238636; }
-    .tag-repo { background: #1f6feb33; color: #58a6ff; border: 1px solid #1f6feb; }
-    .tag-web { background: #a371f733; color: #bc8cff; border: 1px solid #a371f7; }
-    .tag-3d { background: #d2992233; color: #e3b341; border: 1px solid #d29922; }
-    .tray { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; display: none; }
-    .tray.active { display: block; }
-    .tray-header { display: flex; justify-content: space-between; align-items: center; }
-    .file-details { font-family: monospace; font-size: 0.85rem; color: var(--accent); }
-    .btn { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 7px 12px; font-size: 0.85rem; font-weight: 500; cursor: pointer; }
-    .btn:hover { background: var(--accent-hover); }
-    .btn-secondary { background: #21262d; border: 1px solid var(--border); color: #c9d1d9; }
-    .console-box { background: #000; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: monospace; font-size: 0.85rem; color: #3fb950; min-height: 100px; max-height: 200px; overflow-y: auto; white-space: pre-wrap; }
+    body {
+      margin: 0;
+      padding: 24px;
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    .header {
+      margin-bottom: 24px;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 16px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+      gap: 16px;
+    }
+    .card {
+      background: var(--card-bg);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 16px;
+    }
+    .card-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 8px;
+    }
+    .card-title {
+      font-weight: 600;
+      font-size: 1.1em;
+    }
+    .tag {
+      font-size: 0.75em;
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+    .tag-repo { background: rgba(188, 140, 255, 0.15); color: var(--tag-repo); }
+    .tag-file { background: rgba(126, 231, 135, 0.15); color: var(--tag-file); }
+    .tag-web  { background: rgba(255, 166, 87, 0.15); color: var(--tag-web); }
+    .tag-3d   { background: rgba(255, 123, 114, 0.15); color: var(--tag-3d); }
+    .card-desc {
+      font-size: 0.85em;
+      color: #8b949e;
+      margin-bottom: 16px;
+      word-break: break-all;
+    }
+    .btn {
+      width: 100%;
+      background: #21262d;
+      color: var(--text);
+      border: 1px solid var(--border);
+      padding: 8px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: 500;
+    }
+    .btn:hover {
+      background: #30363d;
+      border-color: #8b949e;
+    }
   </style>
 </head>
 <body>
-  <header>
-    <h1>🛠️ All Lads Tool <span class="badge">$totalCount Tools Auto-Synced</span></h1>
-    <div style="font-size: 0.8rem; color: #8b949e;">Generated: $generatedTimestamp (Zero-Localhost)</div>
-  </header>
-
-  <div class="drop-hero" id="heroDrop">
-    <input type="file" id="fileInput" multiple>
-    <h2>📥 Drag & Drop Any File / Folder Here</h2>
-    <p>Drop a file to auto-highlight matching tools and generate dispatch commands.</p>
+  <div class="header">
+    <h1>All Lads Tool :: Interactive Cockpit</h1>
+    <p>Auto-generated on $generatedTimestamp | Active Tools: $totalCount</p>
   </div>
-
-  <div class="tray" id="fileTray">
-    <div class="tray-header">
-      <div><strong>🎯 Staged Target:</strong> <span class="file-details" id="stagedFileName">None</span> <span id="stagedFileType" style="margin-left: 8px; font-size: 0.8rem; color: #8b949e;"></span></div>
-      <button class="btn btn-secondary" onclick="clearStagedFile()">Clear</button>
-    </div>
-    <div style="font-size: 0.85rem; color: #8b949e; margin-top: 6px;" id="stagedRecommendation">Drop any file to see matching tools highlighted.</div>
-  </div>
-
-  <div class="grid" id="toolsGrid">
+  <div class="grid">
 $cardsHtml
   </div>
-
-  <div>
-    <h3 style="font-size: 0.85rem; margin-bottom: 6px; color: #8b949e;">💻 CLI Dispatcher Command</h3>
-    <div class="console-box" id="consoleOutput">> Ready. HTML generated from live script directory.</div>
-  </div>
-
   <script>
-    let activeFile = null;
-    const heroDrop = document.getElementById('heroDrop');
-    const fileInput = document.getElementById('fileInput');
-    const fileTray = document.getElementById('fileTray');
-    const stagedFileName = document.getElementById('stagedFileName');
-    const stagedFileType = document.getElementById('stagedFileType');
-    const stagedRecommendation = document.getElementById('stagedRecommendation');
-    const consoleOutput = document.getElementById('consoleOutput');
-
-    ['dragenter', 'dragover'].forEach(name => {
-      heroDrop.addEventListener(name, (e) => { e.preventDefault(); heroDrop.classList.add('drag-over'); }, false);
-    });
-    ['dragleave', 'drop'].forEach(name => {
-      heroDrop.addEventListener(name, (e) => { e.preventDefault(); heroDrop.classList.remove('drag-over'); }, false);
-    });
-
-    heroDrop.addEventListener('drop', (e) => {
-      const files = e.dataTransfer.files;
-      if (files.length > 0) handleFiles(files);
-    });
-
-    fileInput.addEventListener('change', (e) => {
-      if (e.target.files.length > 0) handleFiles(e.target.files);
-    });
-
-    function handleFiles(files) {
-      activeFile = files[0];
-      fileTray.classList.add('active');
-      stagedFileName.textContent = activeFile.name;
-      stagedFileType.textContent = '(' + (activeFile.size / 1024).toFixed(1) + ' KB)';
-      logConsole('[DROP DETECTED] ' + activeFile.name);
-
-      document.querySelectorAll('.card').forEach(c => c.style.borderColor = 'var(--border)');
-      const ext = activeFile.name.split('.').pop().toLowerCase();
-      let matches = 0;
-
-      document.querySelectorAll('.card').forEach(card => {
-        const cardExt = card.getAttribute('data-ext');
-        const cardFile = (card.getAttribute('data-file') || '').toLowerCase();
-        if ((ext === 'csv' && cardFile.includes('csv')) ||
-            (ext === 'ps1' && cardFile.includes('dry-run')) ||
-            (ext === 'scss' && cardFile.includes('scss')) ||
-            (ext === 'js' && cardExt === 'js') ||
-            (ext === 'py' && cardExt === 'py')) {
-          card.style.borderColor = 'var(--accent)';
-          matches++;
-        }
-      });
-      stagedRecommendation.innerHTML = '<span style="color: var(--accent);">⚡ ' + matches + ' matching tool(s) highlighted.</span>';
-    }
-
-    function clearStagedFile() {
-      activeFile = null;
-      fileTray.classList.remove('active');
-      document.querySelectorAll('.card').forEach(c => c.style.borderColor = 'var(--border)');
-      logConsole('[RESET] Staged file cleared.');
-    }
-
-    function logConsole(msg) {
-      consoleOutput.textContent += '\n' + msg;
-      consoleOutput.scrollTop = consoleOutput.scrollHeight;
-    }
-
     function executeTool(fileName) {
-      const targetParam = activeFile ? ' -Target \"' + activeFile.name + '\"' : '';
-      const cmd = '.\\_run.ps1 -Tool \"' + fileName + '\"' + targetParam;
-      logConsole('[CLI READY]: ' + cmd);
+      alert("Selected tool: " + fileName + "\\nRun via PowerShell CLI (_mainmenu.ps1) for execution.");
     }
   </script>
 </body>
 </html>
 "@
 
-    [System.IO.File]::WriteAllText($htmlPath, $fullHtml, [System.Text.Encoding]::UTF8)
+    try {
+        [System.IO.File]::WriteAllText($htmlPath, $fullHtml, [System.Text.Encoding]::UTF8)
+    } catch { }
 }
 
 function Save-AppState {
     if (-not $resolvedRunJson) { return }
     try {
+        $appState.lastTarget = $currentTarget
         $data = [PSCustomObject]@{
-            mainMenuPath   = $MyInvocation.MyCommand.Path
+            mainMenuPath   = $scriptPath
             activeSlug     = $appState.activeSlug
+            targetDir      = $currentTarget
             allowedDomains = $appState.allowedDomains
             history        = $appState.history | Select-Object -First 30
         }
@@ -370,81 +326,108 @@ function Invoke-UpstreamCheck {
 
 function Execute-ActionByKey ([string]$actionKey) {
     switch ($actionKey) {
-        # 1. BASH
+        # 1. REPO
         "1" {
-            Add-ActionHistory "1" "Battery Telemetry (bash)"
-            $runner = Join-Path $scriptDir "script\bash\check-battery_stand.sh"
+            Add-ActionHistory "1" "Git Manager (ps1)"
+            $runner = Join-Path $scriptDir "script\repo\git-manage.ps1"
             if (Test-Path $runner) {
-                $bashExe = Get-Command "bash.exe" -ErrorAction SilentlyContinue
-                if ($bashExe) { & bash $runner } else { Write-Host "Bash runtime not found in PATH." -ForegroundColor Yellow }
+                & $runner -TargetDir $currentTarget
+            } else {
+                Write-Host "[ERROR] Script not found: $runner" -ForegroundColor Red
             }
         }
-        # 2. BAT
         "2" {
-            Add-ActionHistory "2" "Start Chrome CWP (bat)"
-            $runner = Join-Path $scriptDir "script\bat\start-chrome-cwp_stand.bat"
-            if (Test-Path $runner) { & cmd.exe /c $runner }
-        }
-        # 3. GITBASH
-        "3" {
-            Add-ActionHistory "3" "Git Manager (gitbash)"
-            $runner = Join-Path $scriptDir "script\gitbash\git-manage_stand.sh"
+            Add-ActionHistory "2" "Git Branch Rename (ps1)"
+            $runner = Join-Path $scriptDir "script\repo\git-branch-rename.ps1"
             if (Test-Path $runner) {
-                $bashExe = Get-Command "bash.exe" -ErrorAction SilentlyContinue
-                if ($bashExe) { & bash $runner $currentTarget } else { Write-Host "Git Bash runtime not found in PATH." -ForegroundColor Yellow }
+                & $runner -TargetDir $currentTarget
+            } else {
+                Write-Host "[ERROR] Script not found: $runner" -ForegroundColor Red
             }
         }
-        # 4. JAVASCRIPT
-        "4" {
-            Add-ActionHistory "4" "Codebase Auditor (js)"
-            $runner = Join-Path $scriptDir "script\javascript\audit-codebase_stand.js"
-            if (Test-Path $runner) { node $runner $currentTarget }
+
+        # 2. FILE
+        "3" {
+            Add-ActionHistory "3" "Batch Target Rename (ps1)"
+            $runner = Join-Path $scriptDir "script\file\batch-target-dir-rename.ps1"
+            if (Test-Path $runner) {
+                & $runner -TargetDir $currentTarget
+            } else {
+                Write-Host "[ERROR] Script not found: $runner" -ForegroundColor Red
+            }
         }
-        # 5. POWERSHELL
+        "4" {
+            Add-ActionHistory "4" "CSV to Frontmatter (ps1)"
+            $runner = Join-Path $scriptDir "script\file\csv-to-frontmatter.ps1"
+            if (Test-Path $runner) {
+                & $runner -TargetDir $currentTarget
+            } else {
+                Write-Host "[ERROR] Script not found: $runner" -ForegroundColor Red
+            }
+        }
         "5" {
-            Add-ActionHistory "5" "Git Manager (ps1)"
-            $runner = Join-Path $scriptDir "script\powershell\git-manage_stand.ps1"
-            if (Test-Path $runner) { & $runner -TargetDir $currentTarget }
+            Add-ActionHistory "5" "Dry-Run Simulator (ps1)"
+            $runner = Join-Path $scriptDir "script\file\dry-run.ps1"
+            if (Test-Path $runner) {
+                & $runner
+            } else {
+                Write-Host "[ERROR] Script not found: $runner" -ForegroundColor Red
+            }
         }
         "6" {
-            Add-ActionHistory "6" "Submodule Hub (ps1)"
-            $runner = Join-Path $scriptDir "script\powershell\git-submodule_stand.ps1"
-            if (Test-Path $runner) { & $runner -Action "interactive" -Path $currentTarget }
+            Add-ActionHistory "6" "File Merge into One (ps1)"
+            $runner = Join-Path $scriptDir "script\file\file-merge-into-one.ps1"
+            if (Test-Path $runner) {
+                & $runner -SourceDir $currentTarget
+            } else {
+                Write-Host "[ERROR] Script not found: $runner" -ForegroundColor Red
+            }
         }
         "7" {
-            Add-ActionHistory "7" "Diff Commits (ps1)"
-            $runner = Join-Path $scriptDir "script\powershell\git-diff-commits_stand.ps1"
-            if (Test-Path $runner) { & $runner }
+            Add-ActionHistory "7" "File One to Multi (ps1)"
+            $runner = Join-Path $scriptDir "script\file\file-one-to-multiple-files.ps1"
+            if (Test-Path $runner) {
+                & $runner -OutputDir $currentTarget
+            } else {
+                Write-Host "[ERROR] Script not found: $runner" -ForegroundColor Red
+            }
         }
+
+        # 3. BLENDER
         "8" {
-            Add-ActionHistory "8" "Web Dev Server (ps1)"
-            $runner = Join-Path $scriptDir "script\powershell\start_stand.ps1"
-            if (Test-Path $runner) { & $runner }
-        }
-        "9" {
-            Add-ActionHistory "9" "Standalone Compilers (ps1)"
-            $runner = Join-Path $scriptDir "script\powershell\standalone-compiler_stand.ps1"
-            if (Test-Path $runner) { & $runner -All }
-        }
-        "10" {
-            Add-ActionHistory "10" "Emoji Stripper (ps1)"
-            $runner = Join-Path $scriptDir "script\powershell\remove-emoji.ps1"
-            if (Test-Path $runner) { & $runner -TargetDir $currentTarget }
-        }
-        "11" {
-            Add-ActionHistory "11" "Commit Renamer (ps1)"
-            $runner = Join-Path $scriptDir "script\powershell\git-rename-commit_stand.ps1"
-            if (Test-Path $runner) { & $runner -TargetDir $currentTarget }
-        }
-        # 6. PYTHON
-        "12" {
-            Add-ActionHistory "12" "Server Utility (py)"
-            $runner = Join-Path $scriptDir "script\python\server_stand.py"
+            Add-ActionHistory "8" "Blender FBX Export (py)"
+            $runner = Join-Path $scriptDir "script\blender\fbx-export.py"
             if (Test-Path $runner) {
                 $pyExe = Get-Command "python.exe" -ErrorAction SilentlyContinue
                 if ($pyExe) { & python $runner } else { Write-Host "Python runtime not found in PATH." -ForegroundColor Yellow }
+            } else {
+                Write-Host "[ERROR] Script not found: $runner" -ForegroundColor Red
             }
         }
+
+        # 4. UNITY
+        "9" {
+            Add-ActionHistory "9" "Unity Asset Import (cs)"
+            $runner = Join-Path $scriptDir "script\unity\asset-importer.cs"
+            if (Test-Path $runner) {
+                Write-Host "[*] Unity asset importer script located at: $runner" -ForegroundColor Cyan
+            } else {
+                Write-Host "[ERROR] Script not found: $runner" -ForegroundColor Red
+            }
+        }
+
+        # 5. WEBSITE
+        "10" {
+            Add-ActionHistory "10" "Build Bundles (js)"
+            $runner = Join-Path $scriptDir "script\website\build-bundles.js"
+            if (Test-Path $runner) {
+                $nodeExe = Get-Command "node.exe" -ErrorAction SilentlyContinue
+                if ($nodeExe) { & node $runner $currentTarget } else { Write-Host "Node.js runtime not found in PATH." -ForegroundColor Yellow }
+            } else {
+                Write-Host "[ERROR] Script not found: $runner" -ForegroundColor Red
+            }
+        }
+
         default {
             Write-Host "Action key '$actionKey' is not recognized." -ForegroundColor Yellow
         }
@@ -484,40 +467,34 @@ while ($true) {
     Write-Host "========================================================================" -ForegroundColor Cyan
     Write-Host ""
 
-    # 1. BASH (🔴 RED)
-    Write-Host " --- 1. BASH (script/bash/) --------------------------------------------" -ForegroundColor Red
-    Write-Host "  [ 1 ]  Battery Telemetry  : Check Battery & Hardware Telemetry (sh)" -ForegroundColor Red
+    # 1. REPO (script/repo/) (🟣 MAGENTA / CYAN)
+    Write-Host " --- 1. REPO (script/repo/) --------------------------------------------" -ForegroundColor Cyan
+    Write-Host "  [ 1 ]  Git Manager        : Universal Git Operations & Status (ps1)" -ForegroundColor Cyan
+    Write-Host "  [ 2 ]  Git Branch Rename  : Rename local & upstream branch (ps1)" -ForegroundColor Cyan
     Write-Host ""
 
-    # 2. BAT (🟠 DARKYELLOW / ORANGE)
-    Write-Host " --- 2. BAT (script/bat/) ----------------------------------------------" -ForegroundColor DarkYellow
-    Write-Host "  [ 2 ]  Start Chrome CWP   : Launch Clean Web Project in Chrome (bat)" -ForegroundColor DarkYellow
+    # 2. FILE (script/file/) (🟢 GREEN)
+    Write-Host " --- 2. FILE (script/file/) --------------------------------------------" -ForegroundColor Green
+    Write-Host "  [ 3 ]  Batch Target Rename: Rename MD files by frontmatter title (ps1)" -ForegroundColor Green
+    Write-Host "  [ 4 ]  CSV to Frontmatter : Convert tabular CSV rows to MD files (ps1)" -ForegroundColor Green
+    Write-Host "  [ 5 ]  Dry-Run Simulator  : Non-destructive script dry-run runner (ps1)" -ForegroundColor Green
+    Write-Host "  [ 6 ]  File Merge into One: Consolidate multiple MD files into one (ps1)" -ForegroundColor Green
+    Write-Host "  [ 7 ]  File One to Multi  : Split monolith MD file into modules (ps1)" -ForegroundColor Green
     Write-Host ""
 
-    # 3. GITBASH (🟡 YELLOW / GOLD)
-    Write-Host " --- 3. GITBASH (script/gitbash/) --------------------------------------" -ForegroundColor Yellow
-    Write-Host "  [ 3 ]  Git Manager (Bash) : Universal Git Manager in Git Bash (sh)" -ForegroundColor Yellow
+    # 3. BLENDER (script/blender/) (🟠 ORANGE / YELLOW)
+    Write-Host " --- 3. BLENDER (script/blender/) ---------------------------------------" -ForegroundColor Yellow
+    Write-Host "  [ 8 ]  Blender FBX Export : Universal FBX exporter via LTS adapter (py)" -ForegroundColor Yellow
     Write-Host ""
 
-    # 4. JAVASCRIPT (🟢 GREEN)
-    Write-Host " --- 4. JAVASCRIPT (script/javascript/) --------------------------------" -ForegroundColor Green
-    Write-Host "  [ 4 ]  Codebase Auditor   : Rule #001 - #006 Compliance Auditor (js)" -ForegroundColor Green
+    # 4. UNITY (script/unity/) (🔵 BLUE)
+    Write-Host " --- 4. UNITY (script/unity/) -------------------------------------------" -ForegroundColor Blue
+    Write-Host "  [ 9 ]  Unity Asset Import : Universal Asset Importer via adapter (cs)" -ForegroundColor Blue
     Write-Host ""
 
-    # 5. POWERSHELL (🩵 CYAN)
-    Write-Host " --- 5. POWERSHELL (script/powershell/) --------------------------------" -ForegroundColor Cyan
-    Write-Host "  [ 5 ]  Git Manager (PS)   : Universal Git Operations & Reflog (ps1)" -ForegroundColor Cyan
-    Write-Host "  [ 6 ]  Submodule Hub      : Manage, Add, Update, or Remove Submodules" -ForegroundColor Cyan
-    Write-Host "  [ 7 ]  Diff Commits       : Compare Commit Sizes & Compiled Builds" -ForegroundColor Cyan
-    Write-Host "  [ 8 ]  Web Dev Server     : Start Multi-threaded Local HTTP Server" -ForegroundColor Cyan
-    Write-Host "  [ 9 ]  Standalone Comp    : Compile Modular Scripts to *_stand.*" -ForegroundColor Cyan
-    Write-Host "  [ 10]  Emoji Stripper     : Remove Emojis (Modular: Markdown / All formats)" -ForegroundColor Cyan
-    Write-Host "  [ 11]  Commit Renamer     : Rename HEAD/Historic Commits & Push (GitHub/GitLab)" -ForegroundColor Cyan
-    Write-Host ""
-
-    # 6. PYTHON (🔵 BLUE)
-    Write-Host " --- 6. PYTHON (script/python/) ----------------------------------------" -ForegroundColor Blue
-    Write-Host "  [ 12]  Python Server      : Multi-threaded Python HTTP Server (py)" -ForegroundColor Blue
+    # 5. WEBSITE (script/website/) (🟣 MAGENTA)
+    Write-Host " --- 5. WEBSITE (script/website/) ---------------------------------------" -ForegroundColor Magenta
+    Write-Host "  [ 10]  Build Bundles      : Client modular bundle compiler (js)" -ForegroundColor Magenta
     Write-Host ""
 
     Write-Host " ----------------------------------------------------------------------" -ForegroundColor DarkGray
@@ -534,11 +511,11 @@ while ($true) {
     Write-Host "  [-1 ]  Recent History     : $hPreviewStr" -ForegroundColor DarkCyan
     Write-Host "  [ h ]  History More       : Lihat riwayat lengkap (-1 s/d -$($appState.history.Count))" -ForegroundColor DarkCyan
     Write-Host "  [ g ]  Open Web GUI       : Buka Drag & Drop GUI Dashboard (_mainmenu.html)" -ForegroundColor Yellow
-    Write-Host "  [ t ]  Switch Target Dir  : Ganti folder target project aktif" -ForegroundColor Gray
+    Write-Host "  [ t ]  Switch Target Dir  : Ganti folder target project aktif (Retargeting)" -ForegroundColor White
     Write-Host "  [ q ]  Quit               : Keluar dari dispatcher" -ForegroundColor Gray
     Write-Host "========================================================================" -ForegroundColor Cyan
 
-    $choice = Read-Host "Select option [0-12, g, -1, -2, -3, h, t, q] [Default: 0]"
+    $choice = Read-Host "Select option [0-10, g, -1, -2, -3, h, t, q] [Default: 0]"
     if ([string]::IsNullOrWhiteSpace($choice)) { $choice = "0" }
     $choice = $choice.Trim()
 
@@ -566,7 +543,7 @@ while ($true) {
             Execute-ActionByKey $latest.key
             continue
         } else {
-            Write-Host "Belum ada riwayat aksi sebelumnya. Silakan pilih opsi 1-11 terlebih dahulu." -ForegroundColor Yellow
+            Write-Host "Belum ada riwayat aksi sebelumnya. Silakan pilih opsi 1-10 terlebih dahulu." -ForegroundColor Yellow
             Start-Sleep -Seconds 1
             continue
         }
@@ -616,7 +593,7 @@ while ($true) {
 
     # Standard menu choices
     switch ($choice) {
-        { $_ -in "1","2","3","4","5","6","7","8","9","10","11","12" } {
+        { $_ -in "1","2","3","4","5","6","7","8","9","10" } {
             Execute-ActionByKey $choice
         }
         "g" {
@@ -640,13 +617,55 @@ while ($true) {
             Start-Sleep -Seconds 1
         }
         "t" {
-            $inPath = Read-Host "Masukkan path direktori target project baru"
-            if ($inPath -and (Test-Path $inPath)) {
-                $currentTarget = (Resolve-Path $inPath).Path
+            Write-Host ""
+            Write-Host "========================================================================" -ForegroundColor Cyan
+            Write-Host "   SWITCH TARGET DIRECTORY (RETARGETING)                                " -ForegroundColor Yellow
+            Write-Host "========================================================================" -ForegroundColor Cyan
+            Write-Host " Active Target: $currentTarget" -ForegroundColor White
+
+            $detectedDirs = @()
+            $searchRoots = @($parentDir, $currentTarget) | Select-Object -Unique
+            foreach ($sr in $searchRoots) {
+                if (Test-Path $sr) {
+                    $found = Get-ChildItem -Path $sr -Directory -ErrorAction SilentlyContinue |
+                        Where-Object { 
+                            (Test-Path (Join-Path $_.FullName ".git")) -or 
+                            $_.Name -like "web-app*" -or 
+                            $_.Name -like "obsidian-*" -or 
+                            $_.Name -like "vault_*" -or 
+                            $_.Name -like "quartz*" 
+                        }
+                    if ($found) { $detectedDirs += $found }
+                }
+            }
+            $detectedDirs = $detectedDirs | Sort-Object FullName -Unique
+
+            if ($detectedDirs.Count -gt 0) {
+                Write-Host "`n Detected Projects / Repositories in Workspace:" -ForegroundColor DarkCyan
+                for ($i = 0; $i -lt $detectedDirs.Count; $i++) {
+                    $isGit = if (Test-Path (Join-Path $detectedDirs[$i].FullName ".git")) { "[GIT]" } else { "     " }
+                    Write-Host "  [$($i + 1)] $isGit $($detectedDirs[$i].Name) ($($detectedDirs[$i].FullName))" -ForegroundColor White
+                }
+            }
+
+            Write-Host "`n Enter number [1-$($detectedDirs.Count)], custom path, or drag & drop folder:" -ForegroundColor White
+            $inPath = Read-Host " Target Dir"
+            $inPath = if ($inPath) { $inPath.Trim().Trim('"').Trim("'") } else { "" }
+
+            if ($inPath -match '^\d+$' -and [int]$inPath -ge 1 -and [int]$inPath -le $detectedDirs.Count) {
+                $currentTarget = $detectedDirs[[int]$inPath - 1].FullName
+                $appState.lastTarget = $currentTarget
                 Save-AppState
                 Write-Host "[OK] Target berhasil diganti ke: $currentTarget" -ForegroundColor Green
+            } elseif ($inPath -and (Test-Path $inPath)) {
+                $currentTarget = (Resolve-Path $inPath).Path
+                $appState.lastTarget = $currentTarget
+                Save-AppState
+                Write-Host "[OK] Target berhasil diganti ke: $currentTarget" -ForegroundColor Green
+            } elseif ([string]::IsNullOrWhiteSpace($inPath)) {
+                Write-Host "Retargeting dibatalkan." -ForegroundColor DarkGray
             } else {
-                Write-Host "Path tidak valid atau direktori tidak ditemukan." -ForegroundColor Yellow
+                Write-Host "Path tidak valid atau direktori tidak ditemukan: $inPath" -ForegroundColor Yellow
             }
             Start-Sleep -Seconds 1
         }

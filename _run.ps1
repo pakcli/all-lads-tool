@@ -1,5 +1,5 @@
 # _run.ps1 - Portable Universal Launcher for all-lads-tool _mainmenu.ps1
-# Can be placed anywhere on the drive. Caches chosen path, active slug, and history in _run.json.
+# Can be placed anywhere on the drive. Caches chosen path, active slug, targetDir, and history in _run.json.
 # Loads environment configuration from _run.env if present.
 # If multiple _mainmenu.ps1 files are found, presents an ASCII table view and prompts for selection.
 
@@ -65,6 +65,7 @@ if (Test-Path -LiteralPath $envFile) {
 $config = @{
     mainMenuPath = ""
     activeSlug   = if ($Slug) { $Slug } elseif ($envConfig.ACTIVE_SLUG) { $envConfig.ACTIVE_SLUG } else { "default" }
+    targetDir    = if ($TargetDir) { $TargetDir } else { "" }
     history      = @()
 }
 
@@ -75,12 +76,17 @@ if ((Test-Path -LiteralPath $configFile) -and (-not $Rescan)) {
             $parsed = $raw | ConvertFrom-Json
             if ($parsed.mainMenuPath) { $config.mainMenuPath = $parsed.mainMenuPath }
             if ($parsed.activeSlug -and -not $Slug) { $config.activeSlug = $parsed.activeSlug }
+            if ($parsed.targetDir -and -not $TargetDir) {
+                $TargetDir = $parsed.targetDir
+                $config.targetDir = $parsed.targetDir
+            }
             if ($parsed.history)      { $config.history      = @($parsed.history) }
         }
     } catch { }
 }
 
 if ($Slug) { $config.activeSlug = $Slug }
+if ($TargetDir) { $config.targetDir = $TargetDir }
 
 # 3. Check cached mainMenuPath or discover all candidates
 $chosenPath = ""
@@ -88,66 +94,76 @@ $chosenPath = ""
 if ($config.mainMenuPath -and (Test-Path -LiteralPath $config.mainMenuPath -PathType Leaf) -and (-not $Rescan)) {
     $chosenPath = $config.mainMenuPath
 } else {
-    Write-Host "[_run] Scanning for _mainmenu.ps1..." -ForegroundColor Yellow
+    # Check current directory or all-lads-tool directory first before scanning drive
+    $localMenu = Join-Path $scriptDir "_mainmenu.ps1"
+    $subtoolMenu = Join-Path $scriptDir "all-lads-tool\_mainmenu.ps1"
     
-    $driveRoot = (Get-Item $scriptDir).Root.FullName
-    $allFound = @(Get-ChildItem -Path $driveRoot -Filter "_mainmenu.ps1" -Recurse -File -ErrorAction SilentlyContinue)
+    if ((Test-Path -LiteralPath $localMenu -PathType Leaf) -and (-not $Rescan)) {
+        $chosenPath = (Resolve-Path $localMenu).Path
+    } elseif ((Test-Path -LiteralPath $subtoolMenu -PathType Leaf) -and (-not $Rescan)) {
+        $chosenPath = (Resolve-Path $subtoolMenu).Path
+    } else {
+        Write-Host "[_run] Scanning for _mainmenu.ps1..." -ForegroundColor Yellow
+        
+        $driveRoot = (Get-Item $scriptDir).Root.FullName
+        $allFound = @(Get-ChildItem -Path $driveRoot -Filter "_mainmenu.ps1" -Recurse -File -ErrorAction SilentlyContinue)
 
-    if ($allFound.Count -eq 0) {
-        Write-Error "[_run] ERROR: No _mainmenu.ps1 found on drive $driveRoot."
-        exit 1
-    }
-    elseif ($allFound.Count -eq 1) {
-        $chosenPath = $allFound[0].FullName
-    }
-    else {
-        # Multiple mainmenu files found -> Show ASCII Table View
-        Write-Host ""
-        Write-Host "==========================================================================================" -ForegroundColor Cyan
-        Write-Host " [ALERT] MULTIPLE _mainmenu.ps1 DETECTED ON DRIVE ($($allFound.Count) found)" -ForegroundColor Yellow
-        Write-Host " Please select which mainmenu you want to execute and set as default." -ForegroundColor Cyan
-        Write-Host "==========================================================================================" -ForegroundColor Cyan
-        Write-Host ""
-
-        $tableData = @()
-        $idx = 1
-        foreach ($item in $allFound) {
-            $folder = $item.DirectoryName
-            $latestInFolder = Get-ChildItem -Path $folder -File -ErrorAction SilentlyContinue | 
-                Sort-Object LastWriteTime -Descending | 
-                Select-Object -First 1
-
-            $latestInfo = if ($latestInFolder) {
-                "$($latestInFolder.Name) ($($latestInFolder.LastWriteTime.ToString('yyyy-MM-dd HH:mm')))"
-            } else {
-                "None"
-            }
-
-            $tableData += [PSCustomObject]@{
-                "#"                  = "[$idx]"
-                "MainMenu Path"      = $item.FullName
-                "DateModified Time"  = $item.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")
-                "Latest File Update" = $latestInfo
-            }
-            $idx++
+        if ($allFound.Count -eq 0) {
+            Write-Error "[_run] ERROR: No _mainmenu.ps1 found on drive $driveRoot."
+            exit 1
         }
-
-        $tableData | Format-Table -AutoSize | Out-String | Write-Host -ForegroundColor White
-
-        $selectedIdx = -1
-        while ($selectedIdx -lt 1 -or $selectedIdx -gt $allFound.Count) {
-            $inputVal = Read-Host "Select Main Menu [1-$($allFound.Count)] (Default: 1)"
-            if ([string]::IsNullOrWhiteSpace($inputVal)) {
-                $selectedIdx = 1
-                break
-            }
-            if ($inputVal -match '^\d+$') {
-                $selectedIdx = [int]$inputVal
-            }
+        elseif ($allFound.Count -eq 1) {
+            $chosenPath = $allFound[0].FullName
         }
+        else {
+            # Multiple mainmenu files found -> Show ASCII Table View
+            Write-Host ""
+            Write-Host "==========================================================================================" -ForegroundColor Cyan
+            Write-Host " [ALERT] MULTIPLE _mainmenu.ps1 DETECTED ON DRIVE ($($allFound.Count) found)" -ForegroundColor Yellow
+            Write-Host " Please select which mainmenu you want to execute and set as default." -ForegroundColor Cyan
+            Write-Host "==========================================================================================" -ForegroundColor Cyan
+            Write-Host ""
 
-        $chosenPath = $allFound[$selectedIdx - 1].FullName
-        Write-Host "[_run] Selected: $chosenPath" -ForegroundColor Green
+            $tableData = @()
+            $idx = 1
+            foreach ($item in $allFound) {
+                $folder = $item.DirectoryName
+                $latestInFolder = Get-ChildItem -Path $folder -File -ErrorAction SilentlyContinue | 
+                    Sort-Object LastWriteTime -Descending | 
+                    Select-Object -First 1
+
+                $latestInfo = if ($latestInFolder) {
+                    "$($latestInFolder.Name) ($($latestInFolder.LastWriteTime.ToString('yyyy-MM-dd HH:mm')))"
+                } else {
+                    "None"
+                }
+
+                $tableData += [PSCustomObject]@{
+                    "#"                  = "[$idx]"
+                    "MainMenu Path"      = $item.FullName
+                    "DateModified Time"  = $item.LastWriteTime.ToString("yyyy-MM-dd HH:mm:ss")
+                    "Latest File Update" = $latestInfo
+                }
+                $idx++
+            }
+
+            $tableData | Format-Table -AutoSize | Out-String | Write-Host -ForegroundColor White
+
+            $selectedIdx = -1
+            while ($selectedIdx -lt 1 -or $selectedIdx -gt $allFound.Count) {
+                $inputVal = Read-Host "Select Main Menu [1-$($allFound.Count)] (Default: 1)"
+                if ([string]::IsNullOrWhiteSpace($inputVal)) {
+                    $selectedIdx = 1
+                    break
+                }
+                if ($inputVal -match '^\d+$') {
+                    $selectedIdx = [int]$inputVal
+                }
+            }
+
+            $chosenPath = $allFound[$selectedIdx - 1].FullName
+            Write-Host "[_run] Selected: $chosenPath" -ForegroundColor Green
+        }
     }
 }
 
@@ -169,10 +185,11 @@ if ($config.history) {
     }
 }
 
-# 5. Save to _run.json (Cache chosen path, active slug, public github email, allowed domains, and history)
+# 5. Save to _run.json (Cache chosen path, active slug, targetDir, public github email, allowed domains, and history)
 $savePayload = [PSCustomObject]@{
     mainMenuPath      = $chosenPath
     activeSlug        = $config.activeSlug
+    targetDir         = $TargetDir
     githubUsername    = $envConfig.GITHUB_USERNAME
     githubEmailPublic = $envConfig.GITHUB_EMAIL_PUBLIC
     allowedDomains    = $envConfig.ALLOWED_DOMAINS
@@ -182,6 +199,9 @@ $savePayload = [PSCustomObject]@{
 $savePayload | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $configFile -Encoding UTF8
 Write-Host "[_run] Active _mainmenu.ps1 : $chosenPath" -ForegroundColor DarkCyan
 Write-Host "[_run] Active Slug          : $($config.activeSlug)" -ForegroundColor DarkCyan
+if ($TargetDir) {
+    Write-Host "[_run] Active Target Dir    : $TargetDir" -ForegroundColor DarkCyan
+}
 if ($envConfig.GITHUB_USERNAME) {
     Write-Host "[_run] GitHub Public Identity: $($envConfig.GITHUB_USERNAME) <$($envConfig.GITHUB_EMAIL_PUBLIC)>" -ForegroundColor DarkGray
 }

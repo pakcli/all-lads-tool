@@ -16,7 +16,7 @@ In source/editing mode, codeblock text must remain clean, natural, and free of h
 
 > [!IMPORTANT]
 > **SOURCE CODEBLOCK RULE (UNRENDERED)**:
-> 1. **DO NOT** write hardcoded ASCII branch symbols (`├──`, `└──`, `│`) inside the raw codeblock text.
+> 1. **DO NOT** write hardcoded ASCII branch symbols (`├──`, `└──`, `│`, `|--`) inside the raw codeblock text.
 > 2. **ALWAYS USE TABS or 4-SPACE INDENTATION** to represent hierarchy.
 > 3. The raw source text must remain pure, readable, and standard plain text.
 
@@ -40,12 +40,12 @@ item
 
 ## 2. Node Classification: File Suffix Rule (`.extension`)
 
-Hierarchical behavior is strictly determined by the presence or absence of a file extension suffix: FOR EXAMOLE TABLE:
+Hierarchical behavior is strictly determined by the presence or absence of a file extension suffix:
 
 | Condition | Classification | Behavior |
 | :--- | :--- | :--- |
-| **With suffix `.extension`** (e.g. `.webp`, `.csv`, `.md`, `.pdf`) | **Leaf / File Node** | Terminal item. Cannot spawn children or sub-branch lines. |
-| **Without suffix `.extension`** (e.g. `item`, `asset`, `player`) | **Parent / Directory Node** | Container item. Spawns child branches and triggers the extra typeable line rule. |
+| **With suffix `.extension`** (e.g. `.webp`, `.csv`, `.md`, `.pdf`, `.js`) | **Leaf / File Node** | Terminal item. Cannot spawn children or sub-branch lines. |
+| **Without suffix `.extension`** (e.g. `item`, `asset`, `player`, `src`) | **Parent / Directory Node** | Container item. Spawns child branches and triggers the extra typeable line rule. |
 
 ---
 
@@ -74,10 +74,66 @@ item
 
 ---
 
-## 4. Summary Checklist for Codeblock Processors
+## 4. Inline Annotation Standard (`# Notes / General Functions`)
+
+Nodes in the tree can include inline documentation describing their general function using the hash symbol (`#`):
+
+> [!NOTE]
+> **INLINE COMMENT & ALIGNMENT SPECIFICATION**:
+> 1. **Syntax**: `[indent]<node_name> # <general function / functional description>`
+> 2. **Token Parsing**: The parser splits each line on `#`:
+>    - **Left Token**: Node name and extension (trimmed of trailing whitespace). Governs hierarchy and file/folder classification.
+>    - **Right Token**: Annotation text (trimmed of leading/trailing whitespace). Treated as an explanatory comment/tooltip.
+> 3. **Strict Vertical Column Alignment (`Longest + 1 Space`)**:
+>    - All `#` note indicators within a tree codeblock **MUST align vertically to the exact same column**.
+>    - **Calculation**: Determine the visual length of the longest line (where 1 tab = 4 spaces). The `#` column is set to `max_visual_length + 1 space`.
+>    - Shorter lines are padded with spaces between the node name and `#` so that every `#` begins at that exact visual column.
+> 4. **Visual Rhythm**:
+>    ```text
+>    line                     # note
+>          line               # note
+>           linepanjang       # note
+>    ```
+> 5. **Rendered Display**: The engine displays the tree branch structure on the left and aligns the `#` notes into an aligned, muted description column or contextual tooltip.
+
+### Example: Source Mode with Aligned Notes
+
+```text
+web-app_sport-club                      # Root application workspace
+	data                                # Master air-gapped data vault
+		players.csv                     # Master athlete records
+		live_match_state.json           # Realtime match state payload
+	src                                 # Development source workspace
+		app.js                          # Public landing orchestrator
+		admin.html                      # CMS admin portal
+		style.css                       # Global stylesheet
+	public                              # Compiled distribution target
+```
+
+### Example: Rendered View with Notes
+
+```text
+web-app_sport-club                      # Root application workspace
+├── data                                # Master air-gapped data vault
+│   ├── players.csv                     # Master athlete records
+│   ├── live_match_state.json           # Realtime match state payload
+│   └──                                 <-- Kosong & typeable
+├── src                                 # Development source workspace
+│   ├── app.js                          # Public landing orchestrator
+│   ├── admin.html                      # CMS admin portal
+│   ├── style.css                       # Global stylesheet
+│   └──                                 <-- Kosong & typeable
+└── public                              # Compiled distribution target
+```
+
+---
+
+## 5. Summary Checklist for Codeblock Processors
 
 - [x] **Source Integrity**: Never inject or require `├──`, `└──`, `│` in the raw codeblock markdown.
 - [x] **Tab/Space Indentation**: Parse hierarchy purely from indentation depth.
 - [x] **Suffix Check**: Automatically treat any node without `.ext` as a parent folder.
+- [x] **Inline Annotations**: Parse `#` as inline functional notes, preserving node name on the left.
+- [x] **Strict Note Alignment**: Align all `#` comments to `longest_line + 1 space` across the entire codeblock.
 - [x] **Extra Sub-branch**: Always provide 1 empty, typeable `└── ` line for every parent branch.
 - [x] **Bi-directional Sync**: Typing into the empty sub-branch immediately updates the active note codeblock with proper indentation.

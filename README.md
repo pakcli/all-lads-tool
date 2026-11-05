@@ -128,7 +128,7 @@ all-lads-tool
 2. **`unity/` (Game Engine & Editor Tools)**: C# Editor utilities, asset post-processors, meta-file cleaners, dan build triggers.
 3. **`repo/` (Git & Repository Orchestration)**: Universal Git Manager, branch renamer, commit size inspector, submodule orchestrator, dan reflog recovery.
 4. **`website/` (Web Architecture & Frontend)**: Bundling ES module, SCSS/CSS compiler, DOM accessibility validator, dan Playwright snapshot engine.
-5. **`file/` (File & Data Transformation)**: Bidirectional CSV $\leftrightarrow$ YAML Frontmatter bridge, text formatters, dan PowerShell dry-run simulation engine.
+5. **`file/` (File & Data Transformation)**: Universal 4-Mode Clipboard Suite (`PolyClip`) dengan Unified 5-Column Architecture, Bidirectional CSV $\leftrightarrow$ YAML Frontmatter bridge, pemecah/penggabung file (`file-merge` / `file-split`), dan PowerShell dry-run simulation engine.
 
 ---
 
@@ -149,11 +149,20 @@ all-lads-tool
 
 2. **Jalankan Standalone Script Langsung**:
    ```powershell
+   # Buka PolyClip 4-Mode Clipboard Panel (Unified 5-Column WPF UI)
+   .\script\file\detector-clipboard-4-mode.ps1 -Panel
+
+   # Jalankan PolyClip Terminal CLI Dashboard
+   .\script\file\detector-clipboard-4-mode.ps1 -Mode CLI
+
+   # Jalankan Win+V Background Override Daemon (0% CPU Event-Driven)
+   .\script\file\adapter\daemon-override-win-v.ps1
+
    # Jalankan tool konversi CSV ke Frontmatter
-   .\script\file\csv-to-frontmatter_stand.ps1 -TargetDir "vault/notes" -TargetCsv "data.csv"
+   .\script\file\csv-to-frontmatter.ps1 -TargetDir "vault/notes" -TargetCsv "data.csv"
    
    # Jalankan simulasi Dry-Run pada skrip apapun
-   .\script\file\dry-run-ps1.ps1 -ScriptPath ".\script\repo\git-branch-rename_stand.ps1"
+   .\script\file\dry-run.ps1 -ScriptPath ".\script\repo\git-branch-rename.ps1"
    ```
 
 *Untuk panduan lengkap setiap perintah dan parameter, silakan baca **[GUIDE.md](GUIDE.md)**.*

@@ -101,13 +101,53 @@ Setiap skrip berakhiran `_stand.<ext>` dapat dijalankan secara langsung tanpa be
 ## 4. Panduan Operasional 5 Contexts
 
 ### Context: File (`script/file/`)
-Fokus pada konversi data, sanitasi format, dan manipulasi teks aman.
-- **`csv-to-frontmatter_stand.ps1`**:
+Fokus pada konversi data, sanitasi format, manipulasi teks aman, dan manajemen clipboard cerdas.
+
+- **`detector-clipboard-4-mode.ps1` (PolyClip Universal Clipboard Suite)**:
+  Suite clipboard polimorfik 4-mode dengan Unified 5-Column WPF UI Panel dan Terminal CLI Dashboard.
+  ```powershell
+  # Buka Unified 5-Column WPF GUI Panel
+  .\script\file\detector-clipboard-4-mode.ps1 -Panel
+
+  # Buka Interactive Terminal CLI Dashboard
+  .\script\file\detector-clipboard-4-mode.ps1 -Mode CLI
+
+  # Langsung terapkan mode tertentu ke clipboard aktif
+  .\script\file\detector-clipboard-4-mode.ps1 -Mode 1   # Mode 1: Plain Text
+  .\script\file\detector-clipboard-4-mode.ps1 -Mode 2   # Mode 2: Absolute File Path
+  .\script\file\detector-clipboard-4-mode.ps1 -Mode 3   # Mode 3: File Script Content
+  .\script\file\detector-clipboard-4-mode.ps1 -Mode 4   # Mode 4: CF_HDROP File Drop
+
+  # Inspeksi cepat clipboard saat ini (JSON / List)
+  .\script\file\detector-clipboard-4-mode.ps1 -Inspect -Json
+  ```
+
+  **Arsitektur 5 Kolom Terpadu (WPF Panel)**:
+  1. **`i` (34px)**: Tombol inspeksi cepat untuk membuka modal editor konten item.
+  2. **`CONTENT` (1.6*)**: Menampilkan teks murni (`[TXT]`) atau preview isi kode (`[FILE]`) dengan akordeon scrollable `...`.
+  3. **`FILE PATH` (1.2*)**: Path absolut bergradasi warna drive (`C:` Merah, `D:` Biru, `E:+` Hijau) dengan Selectable TextBox untuk blok snippet dan tombol `📋`.
+  4. **`EXACT FILE (NAME | SIZE)` (1.2*)**: Nama file fisik `CF_HDROP` (klik langsung menyorot file di Windows Explorer via `/select`), tombol `📋`, dan badge ukuran.
+  5. **`ACTIONS` (90px)**: Tombol **`[Copy]`** (menyalin ke clipboard & mempromosikan ke #1 Latest) dan **`[Del]`** (hapus entri).
+
+  **Win+V Background Override Daemon & Launchers (`script/file/adapter/`)**:
+  - **`daemon-override-win-v.ps1`**: Background daemon yang mencegat penekanan tombol `Win+V`, memblokir popup default Windows `TextInputHost`, dan langsung membuka PolyClip 5-Column Panel. Menggunakan Win32 interceptor (`WinVInterceptor.cs`) dengan 0% CPU event-driven `WM_CLIPBOARDUPDATE`.
+  - **`start-win-v-override.bat`**: Launcher konsol interaktif untuk menjalankan daemon dengan status real-time.
+  - **`run-win-v-daemon-silent.vbs`**: Launcher background senyap (tanpa jendela terminal yang mengganggu).
+  - **`run-panel.bat`**: Shortcut desktop/eksekusi cepat untuk langsung memunculkan PolyClip Panel.
+  ```powershell
+  # Menjalankan daemon Win+V Override
+  .\script\file\adapter\daemon-override-win-v.ps1
+
+  # Menjalankan launcher batch
+  .\script\file\adapter\start-win-v-override.bat
+  ```
+
+- **`csv-to-frontmatter.ps1`**:
   Mengubah data tabular CSV menjadi dokumen Markdown dengan YAML frontmatter kompatibel Obsidian:
   ```powershell
-  .\script\file\csv-to-frontmatter_stand.ps1 -TargetDir "output/notes" -TargetCsv "input.csv"
+  .\script\file\csv-to-frontmatter.ps1 -TargetDir "output/notes" -TargetCsv "input.csv"
   ```
-- **`dry-run-ps1.ps1`**:
+- **`dry-run.ps1`**:
   Runner simulasi untuk menguji skrip PowerShell sebelum melakukan perubahan permanen pada file.
 
 ### Context: Repo (`script/repo/`)
@@ -118,11 +158,16 @@ Fokus pada version control, keamanan riwayat git, dan otomasi branching.
   Otomasi penggantian nama branch mengikuti standar penamaan datar `language-firstname-secondname`.
 
 ### Context: Website (`script/website/`)
-Fokus pada client bundling, stylesheet compiler, dan inspeksi DOM.
+Fokus pada client bundling, stylesheet compiler, inspeksi DOM, dan UI webview.
 - **`build-bundles_stand.js`**:
   Mengompilasi ES modules menjadi bundel produksi terisolasi tanpa framework berlebih.
 - **`theme-compiler_stand.js`**:
   Kompilasi SCSS/CSS 1:1 dan mode sinkronisasi tema Obsidian.
+- **Protokol Universal Drag-and-Drop (Cross-OS)**:
+  Standar interaksi webview untuk tree explorer dan file manager (`[[universal-drag-and-drop-cross-os]]`). Mendukung 3 tier:
+  1. *Intra-Tree Sorting*: Reordering file dalam folder yang sama tanpa reload.
+  2. *Inter-Tree Move/Copy*: Pemindahan file/folder antar tree pane via `vscode.workspace.fs`.
+  3. *Drag to External Apps*: Dragging file (seperti `GUIDE.md`) langsung keluar dari webview menuju VS Code editor tab (`text/uri-list`), desktop (`DownloadURL`), atau terminal (`text/plain`).
 
 ### Context: Blender (`script/blender/`)
 Fokus pada otomasi pemodelan 3D dan export pipeline.
@@ -177,3 +222,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\script\file\csv-to-frontma
 
 ### 3. File Terkunci oleh Proses Lain (File Locker)
 Gunakan utilitas pendeteksi locker di context `repo/` atau `file/` untuk melihat PID proses Windows yang menahan handle file sebelum mencoba menghapus paksa.
+
+### 4. Clipboard Manager Bergerak Sendiri (*Moving on its own* / Feedback Loop)
+Terjadi jika timer live-watcher (`liveTimer`) salah mendeteksi clipboard write internal sebagai event copy baru dari user.
+- **Pencegahan**: Sistem menggunakan `$global:PolyClipSuppressUntil` (jeda 3000ms) setiap kali item disalin internal.
+- **State Guard**: `$global:PolyClipLastRawText` membandingkan payload teks secara global sehingga klip identik tidak akan diduplikasi secara otomatis.
+
+### 5. Stringifikasi Objek PowerShell pada Kolom Teks
+Jika teks yang disalin mengandung dump objek PowerShell (`[string]@{Id=...}`):
+- Engine otomatis mengeksekusi `Clean-PlainText` dan `Unwrap-Mode1Text` untuk membuang bungkus serialisasi dan tanda kutip, sehingga cell `CONTENT` selalu menampilkan teks asli secara bersih.

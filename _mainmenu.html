@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="UTF-8">
@@ -17,194 +17,165 @@
       --danger: #da3633;
       --drop-active: rgba(88, 166, 255, 0.15);
     }
-
-    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
     body { background-color: var(--bg); color: var(--text); padding: 24px; min-height: 100vh; display: flex; flex-direction: column; gap: 20px; }
-
     header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); padding-bottom: 16px; }
     h1 { font-size: 1.5rem; color: #fff; display: flex; align-items: center; gap: 10px; }
     .badge { font-size: 0.75rem; background: var(--border); padding: 4px 8px; border-radius: 12px; color: var(--accent); }
-
-    /* Drop Zone Hero */
-    .drop-hero {
-      border: 2px dashed var(--border);
-      border-radius: 12px;
-      padding: 40px 20px;
-      text-align: center;
-      background: var(--card-bg);
-      cursor: pointer;
-      transition: all 0.2s ease;
-      position: relative;
-    }
-    .drop-hero.drag-over {
-      border-color: var(--accent);
-      background: var(--drop-active);
-      transform: scale(1.01);
-    }
+    .drop-hero { border: 2px dashed var(--border); border-radius: 12px; padding: 36px 20px; text-align: center; background: var(--card-bg); cursor: pointer; transition: all 0.2s ease; position: relative; }
+    .drop-hero.drag-over { border-color: var(--accent); background: var(--drop-active); transform: scale(1.01); }
     .drop-hero h2 { font-size: 1.2rem; color: #fff; margin-bottom: 8px; }
     .drop-hero p { font-size: 0.9rem; color: #8b949e; }
     .drop-hero input[type="file"] { position: absolute; top: 0; left: 0; width: 100%; height: 100%; opacity: 0; cursor: pointer; }
-
-    /* Action Grid */
     .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 16px; }
-    .card {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px;
-      display: flex;
-      flex-direction: column;
-      gap: 12px;
-      position: relative;
-    }
+    .card { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; display: flex; flex-direction: column; gap: 10px; transition: border-color 0.2s ease; }
     .card-header { display: flex; justify-content: space-between; align-items: center; }
-    .card-title { font-weight: 600; color: #fff; font-size: 1rem; }
-    .card-desc { font-size: 0.85rem; color: #8b949e; line-height: 1.4; flex-grow: 1; }
-
+    .card-title { font-weight: 600; color: #fff; font-size: 0.95rem; }
+    .card-desc { font-size: 0.8rem; color: #8b949e; font-family: monospace; word-break: break-all; }
     .tag { font-size: 0.7rem; padding: 2px 6px; border-radius: 4px; font-weight: 500; }
     .tag-file { background: #23863633; color: #3fb950; border: 1px solid #238636; }
     .tag-repo { background: #1f6feb33; color: #58a6ff; border: 1px solid #1f6feb; }
     .tag-web { background: #a371f733; color: #bc8cff; border: 1px solid #a371f7; }
     .tag-3d { background: #d2992233; color: #e3b341; border: 1px solid #d29922; }
-
-    /* File Inspector Tray */
-    .tray {
-      background: var(--card-bg);
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 16px;
-      display: none;
-    }
+    .tray { background: var(--card-bg); border: 1px solid var(--border); border-radius: 8px; padding: 14px; display: none; }
     .tray.active { display: block; }
-    .tray-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; }
+    .tray-header { display: flex; justify-content: space-between; align-items: center; }
     .file-details { font-family: monospace; font-size: 0.85rem; color: var(--accent); }
-
-    .btn {
-      background: var(--accent);
-      color: #fff;
-      border: none;
-      border-radius: 6px;
-      padding: 8px 14px;
-      font-size: 0.85rem;
-      font-weight: 500;
-      cursor: pointer;
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      transition: background 0.15s ease;
-    }
+    .btn { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 7px 12px; font-size: 0.85rem; font-weight: 500; cursor: pointer; }
     .btn:hover { background: var(--accent-hover); }
     .btn-secondary { background: #21262d; border: 1px solid var(--border); color: #c9d1d9; }
-    .btn-secondary:hover { background: #30363d; }
-
-    /* CLI Output Console */
-    .console-box {
-      background: #000;
-      border: 1px solid var(--border);
-      border-radius: 8px;
-      padding: 12px;
-      font-family: 'Consolas', 'Courier New', monospace;
-      font-size: 0.85rem;
-      color: #3fb950;
-      min-height: 120px;
-      max-height: 250px;
-      overflow-y: auto;
-      white-space: pre-wrap;
-    }
+    .console-box { background: #000; border: 1px solid var(--border); border-radius: 8px; padding: 12px; font-family: monospace; font-size: 0.85rem; color: #3fb950; min-height: 100px; max-height: 200px; overflow-y: auto; white-space: pre-wrap; }
   </style>
 </head>
 <body>
-
   <header>
-    <h1>🛠️ All Lads Tool <span class="badge">Drag & Drop GUI</span></h1>
-    <div>
-      <span style="font-size: 0.85rem; color: #8b949e;">Universal Offline Cockpit</span>
-    </div>
+    <h1>ðŸ› ï¸ All Lads Tool <span class="badge">14 Tools Auto-Synced</span></h1>
+    <div style="font-size: 0.8rem; color: #8b949e;">Generated: 2026-11-01 18:27:22 (Zero-Localhost)</div>
   </header>
 
-  <!-- Universal Drop Hero -->
   <div class="drop-hero" id="heroDrop">
     <input type="file" id="fileInput" multiple>
-    <h2>📥 Drag & Drop Any File / Folder Here</h2>
-    <p>Drop a <strong>.csv</strong> for Frontmatter conversion, a <strong>.ps1</strong> for Dry-Run check, a <strong>.git</strong> folder for Repo management, or 3D/Web assets.</p>
+    <h2>ðŸ“¥ Drag & Drop Any File / Folder Here</h2>
+    <p>Drop a file to auto-highlight matching tools and generate dispatch commands.</p>
   </div>
 
-  <!-- Detected File Info Tray -->
   <div class="tray" id="fileTray">
     <div class="tray-header">
-      <div>
-        <strong>🎯 Staged Target:</strong> <span class="file-details" id="stagedFileName">None</span>
-        <span id="stagedFileType" style="margin-left: 10px; font-size: 0.8rem; color: #8b949e;"></span>
-      </div>
+      <div><strong>ðŸŽ¯ Staged Target:</strong> <span class="file-details" id="stagedFileName">None</span> <span id="stagedFileType" style="margin-left: 8px; font-size: 0.8rem; color: #8b949e;"></span></div>
       <button class="btn btn-secondary" onclick="clearStagedFile()">Clear</button>
     </div>
-    <div style="font-size: 0.85rem; color: #8b949e;" id="stagedRecommendation">
-      Recommended actions will be highlighted below based on file type.
-    </div>
+    <div style="font-size: 0.85rem; color: #8b949e; margin-top: 6px;" id="stagedRecommendation">Drop any file to see matching tools highlighted.</div>
   </div>
 
-  <!-- Actions Context Grid -->
-  <div class="grid">
-    <!-- File Context -->
-    <div class="card" id="card-csv">
+  <div class="grid" id="toolsGrid">
+    <div class="card" data-ext="ps1" data-file="csv-to-frontmatter_stand.ps1">
       <div class="card-header">
-        <span class="card-title">📄 CSV → Frontmatter</span>
+        <span class="card-title">csv-to-frontmatter</span>
+        <span class="tag tag-file">SCRIPT</span>
+      </div>
+      <p class="card-desc">Target: script/csv-to-frontmatter_stand.ps1</p>
+      <button class="btn" onclick="executeTool('csv-to-frontmatter_stand.ps1')">Select Tool</button>
+    </div>    <div class="card" data-ext="py" data-file="fbx-export.py">
+      <div class="card-header">
+        <span class="card-title">fbx-export</span>
+        <span class="tag tag-3d">BLENDER</span>
+      </div>
+      <p class="card-desc">Target: script/blender/fbx-export.py</p>
+      <button class="btn" onclick="executeTool('fbx-export.py')">Select Tool</button>
+    </div>    <div class="card" data-ext="ps1" data-file="batch-target-dir-rename-based-on-frontmatter-markdown-title-kebab-case.ps1">
+      <div class="card-header">
+        <span class="card-title">batch-target-dir-rename-based-on-frontmatter-markdown-title-kebab-case</span>
         <span class="tag tag-file">FILE</span>
       </div>
-      <p class="card-desc">Converts CSV tables into clean Obsidian Markdown notes with YAML frontmatter and pipe separation.</p>
-      <button class="btn" onclick="executeTool('csv-to-frontmatter')">Run Conversion</button>
-    </div>
-
-    <!-- Dry-Run Context -->
-    <div class="card" id="card-dryrun">
+      <p class="card-desc">Target: script/file/batch-target-dir-rename-based-on-frontmatter-markdown-title-kebab-case.ps1</p>
+      <button class="btn" onclick="executeTool('batch-target-dir-rename-based-on-frontmatter-markdown-title-kebab-case.ps1')">Select Tool</button>
+    </div>    <div class="card" data-ext="ps1" data-file="batch-target-dir-rename-based-on-frontmatter-markdown-title.ps1">
       <div class="card-header">
-        <span class="card-title">🛡️ PowerShell Dry-Run</span>
+        <span class="card-title">batch-target-dir-rename-based-on-frontmatter-markdown-title</span>
         <span class="tag tag-file">FILE</span>
       </div>
-      <p class="card-desc">Simulates a PowerShell script with 0 mutations, rendering ASCII table preview without touching disk.</p>
-      <button class="btn" onclick="executeTool('dry-run-ps1')">Simulate Script</button>
-    </div>
-
-    <!-- Repo Context -->
-    <div class="card" id="card-repo">
+      <p class="card-desc">Target: script/file/batch-target-dir-rename-based-on-frontmatter-markdown-title.ps1</p>
+      <button class="btn" onclick="executeTool('batch-target-dir-rename-based-on-frontmatter-markdown-title.ps1')">Select Tool</button>
+    </div>    <div class="card" data-ext="ps1" data-file="batch-target-dir-rename-frontmatter-markdown-kebab-case-and-rename-file.ps1">
       <div class="card-header">
-        <span class="card-title">📦 Git Manager</span>
+        <span class="card-title">batch-target-dir-rename-frontmatter-markdown-kebab-case-and-rename-file</span>
+        <span class="tag tag-file">FILE</span>
+      </div>
+      <p class="card-desc">Target: script/file/batch-target-dir-rename-frontmatter-markdown-kebab-case-and-rename-file.ps1</p>
+      <button class="btn" onclick="executeTool('batch-target-dir-rename-frontmatter-markdown-kebab-case-and-rename-file.ps1')">Select Tool</button>
+    </div>    <div class="card" data-ext="ps1" data-file="batch-target-dir-rename.ps1">
+      <div class="card-header">
+        <span class="card-title">batch-target-dir-rename</span>
+        <span class="tag tag-file">FILE</span>
+      </div>
+      <p class="card-desc">Target: script/file/batch-target-dir-rename.ps1</p>
+      <button class="btn" onclick="executeTool('batch-target-dir-rename.ps1')">Select Tool</button>
+    </div>    <div class="card" data-ext="ps1" data-file="csv-to-frontmatter.ps1">
+      <div class="card-header">
+        <span class="card-title">csv-to-frontmatter</span>
+        <span class="tag tag-file">FILE</span>
+      </div>
+      <p class="card-desc">Target: script/file/csv-to-frontmatter.ps1</p>
+      <button class="btn" onclick="executeTool('csv-to-frontmatter.ps1')">Select Tool</button>
+    </div>    <div class="card" data-ext="ps1" data-file="dry-run.ps1">
+      <div class="card-header">
+        <span class="card-title">dry-run</span>
+        <span class="tag tag-file">FILE</span>
+      </div>
+      <p class="card-desc">Target: script/file/dry-run.ps1</p>
+      <button class="btn" onclick="executeTool('dry-run.ps1')">Select Tool</button>
+    </div>    <div class="card" data-ext="ps1" data-file="file-merge-into-one.ps1">
+      <div class="card-header">
+        <span class="card-title">file-merge-into-one</span>
+        <span class="tag tag-file">FILE</span>
+      </div>
+      <p class="card-desc">Target: script/file/file-merge-into-one.ps1</p>
+      <button class="btn" onclick="executeTool('file-merge-into-one.ps1')">Select Tool</button>
+    </div>    <div class="card" data-ext="ps1" data-file="file-one-to-multiple-files.ps1">
+      <div class="card-header">
+        <span class="card-title">file-one-to-multiple-files</span>
+        <span class="tag tag-file">FILE</span>
+      </div>
+      <p class="card-desc">Target: script/file/file-one-to-multiple-files.ps1</p>
+      <button class="btn" onclick="executeTool('file-one-to-multiple-files.ps1')">Select Tool</button>
+    </div>    <div class="card" data-ext="ps1" data-file="git-branch-rename.ps1">
+      <div class="card-header">
+        <span class="card-title">git-branch-rename</span>
         <span class="tag tag-repo">REPO</span>
       </div>
-      <p class="card-desc">Inspect commits, safe branch rename, clean reflog recovery, and submodule synchronization.</p>
-      <button class="btn" onclick="executeTool('git-manage')">Open Repo Cockpit</button>
-    </div>
-
-    <!-- Web Context -->
-    <div class="card" id="card-web">
+      <p class="card-desc">Target: script/repo/git-branch-rename.ps1</p>
+      <button class="btn" onclick="executeTool('git-branch-rename.ps1')">Select Tool</button>
+    </div>    <div class="card" data-ext="ps1" data-file="git-manage.ps1">
       <div class="card-header">
-        <span class="card-title">🌐 Bundle & CSS Compiler</span>
+        <span class="card-title">git-manage</span>
+        <span class="tag tag-repo">REPO</span>
+      </div>
+      <p class="card-desc">Target: script/repo/git-manage.ps1</p>
+      <button class="btn" onclick="executeTool('git-manage.ps1')">Select Tool</button>
+    </div>    <div class="card" data-ext="cs" data-file="asset-importer.cs">
+      <div class="card-header">
+        <span class="card-title">asset-importer</span>
+        <span class="tag tag-3d">UNITY</span>
+      </div>
+      <p class="card-desc">Target: script/unity/asset-importer.cs</p>
+      <button class="btn" onclick="executeTool('asset-importer.cs')">Select Tool</button>
+    </div>    <div class="card" data-ext="js" data-file="build-bundles.js">
+      <div class="card-header">
+        <span class="card-title">build-bundles</span>
         <span class="tag tag-web">WEBSITE</span>
       </div>
-      <p class="card-desc">Compact JS modules and compile SCSS/CSS 1:1 with Obsidian vault theme integration.</p>
-      <button class="btn" onclick="executeTool('web-compiler')">Compile Assets</button>
-    </div>
-
-    <!-- 3D Context -->
-    <div class="card" id="card-3d">
-      <div class="card-header">
-        <span class="card-title">🎨 Blender & Unity Bridge</span>
-        <span class="tag tag-3d">3D/GAME</span>
-      </div>
-      <p class="card-desc">Automated FBX batch export, material sync, and game-engine asset import pipeline.</p>
-      <button class="btn" onclick="executeTool('3d-pipeline')">Run 3D Pipeline</button>
+      <p class="card-desc">Target: script/website/build-bundles.js</p>
+      <button class="btn" onclick="executeTool('build-bundles.js')">Select Tool</button>
     </div>
   </div>
 
-  <!-- Realtime Terminal Console Output -->
   <div>
-    <h3 style="font-size: 0.9rem; margin-bottom: 8px; color: #8b949e;">💻 Dispatcher Output</h3>
-    <div class="console-box" id="consoleOutput">> Ready. Drop any file to begin inspection...</div>
+    <h3 style="font-size: 0.85rem; margin-bottom: 6px; color: #8b949e;">ðŸ’» CLI Dispatcher Command</h3>
+    <div class="console-box" id="consoleOutput">> Ready. HTML generated from live script directory.</div>
   </div>
 
   <script>
     let activeFile = null;
-
     const heroDrop = document.getElementById('heroDrop');
     const fileInput = document.getElementById('fileInput');
     const fileTray = document.getElementById('fileTray');
@@ -213,23 +184,15 @@
     const stagedRecommendation = document.getElementById('stagedRecommendation');
     const consoleOutput = document.getElementById('consoleOutput');
 
-    ['dragenter', 'dragover'].forEach(eventName => {
-      heroDrop.addEventListener(eventName, (e) => {
-        e.preventDefault();
-        heroDrop.classList.add('drag-over');
-      }, false);
+    ['dragenter', 'dragover'].forEach(name => {
+      heroDrop.addEventListener(name, (e) => { e.preventDefault(); heroDrop.classList.add('drag-over'); }, false);
     });
-
-    ['dragleave', 'drop'].forEach(eventName => {
-      heroDrop.addEventListener(eventName, (e) => {
-        e.preventDefault();
-        heroDrop.classList.remove('drag-over');
-      }, false);
+    ['dragleave', 'drop'].forEach(name => {
+      heroDrop.addEventListener(name, (e) => { e.preventDefault(); heroDrop.classList.remove('drag-over'); }, false);
     });
 
     heroDrop.addEventListener('drop', (e) => {
-      const dt = e.dataTransfer;
-      const files = dt.files;
+      const files = e.dataTransfer.files;
       if (files.length > 0) handleFiles(files);
     });
 
@@ -241,33 +204,26 @@
       activeFile = files[0];
       fileTray.classList.add('active');
       stagedFileName.textContent = activeFile.name;
-      stagedFileType.textContent = `(${(activeFile.size / 1024).toFixed(1)} KB) - ${activeFile.type || 'Custom Type'}`;
+      stagedFileType.textContent = '(' + (activeFile.size / 1024).toFixed(1) + ' KB)';
+      logConsole('[DROP DETECTED] ' + activeFile.name);
 
-      logConsole(`[DROP DETECTED] File: ${activeFile.name} (${activeFile.size} bytes)`);
-
-      // Smart Recommendation Highlight
       document.querySelectorAll('.card').forEach(c => c.style.borderColor = 'var(--border)');
-      
       const ext = activeFile.name.split('.').pop().toLowerCase();
-      if (ext === 'csv') {
-        highlightCard('card-csv', 'Detected CSV table. Ready for Frontmatter conversion.');
-      } else if (ext === 'ps1') {
-        highlightCard('card-dryrun', 'Detected PowerShell script. Ready for Dry-Run simulation.');
-      } else if (ext === 'fbx' || ext === 'blend' || ext === 'obj') {
-        highlightCard('card-3d', 'Detected 3D asset. Ready for 3D/Unity pipeline.');
-      } else if (ext === 'scss' || ext === 'css' || ext === 'js') {
-        highlightCard('card-web', 'Detected Web asset. Ready for bundling/compiling.');
-      } else {
-        stagedRecommendation.textContent = `Target staged: Ready to dispatch across any available tool.`;
-      }
-    }
+      let matches = 0;
 
-    function highlightCard(cardId, message) {
-      const card = document.getElementById(cardId);
-      if (card) {
-        card.style.borderColor = 'var(--accent)';
-        stagedRecommendation.innerHTML = `<span style="color: var(--accent);">⚡ ${message}</span>`;
-      }
+      document.querySelectorAll('.card').forEach(card => {
+        const cardExt = card.getAttribute('data-ext');
+        const cardFile = (card.getAttribute('data-file') || '').toLowerCase();
+        if ((ext === 'csv' && cardFile.includes('csv')) ||
+            (ext === 'ps1' && cardFile.includes('dry-run')) ||
+            (ext === 'scss' && cardFile.includes('scss')) ||
+            (ext === 'js' && cardExt === 'js') ||
+            (ext === 'py' && cardExt === 'py')) {
+          card.style.borderColor = 'var(--accent)';
+          matches++;
+        }
+      });
+      stagedRecommendation.innerHTML = '<span style="color: var(--accent);">âš¡ ' + matches + ' matching tool(s) highlighted.</span>';
     }
 
     function clearStagedFile() {
@@ -278,23 +234,14 @@
     }
 
     function logConsole(msg) {
-      consoleOutput.textContent += `\n${msg}`;
+      consoleOutput.textContent += '\n' + msg;
       consoleOutput.scrollTop = consoleOutput.scrollHeight;
     }
 
-    function executeTool(toolName) {
-      if (!activeFile) {
-        logConsole(`[INFO] Executing ${toolName} with default workspace targets...`);
-      } else {
-        logConsole(`[DISPATCH] Executing ${toolName} on target: ${activeFile.name}...`);
-      }
-      
-      // PowerShell CLI command string ready to copy or dispatch
-      const cliCmd = activeFile 
-        ? `.\\_run.ps1 -Target "${activeFile.name}" -Action "${toolName}"`
-        : `.\\_run.ps1 -Action "${toolName}"`;
-
-      logConsole(`[CLI COMMAND GENERATED]:\n  ${cliCmd}`);
+    function executeTool(fileName) {
+      const targetParam = activeFile ? ' -Target \"' + activeFile.name + '\"' : '';
+      const cmd = '.\\_run.ps1 -Tool \"' + fileName + '\"' + targetParam;
+      logConsole('[CLI READY]: ' + cmd);
     }
   </script>
 </body>

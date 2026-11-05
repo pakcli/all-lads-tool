@@ -26,9 +26,13 @@ function Invoke-GitBranchRename {
         [string]$RepoPath = (Get-Location).Path,
         [string]$Remote = "origin"
     )
-    $curr = (git -C $RepoPath rev-parse --abbrev-ref HEAD).Trim()
-    Write-Host "[ADAPTER v02-40-00] Renaming branch '$curr' -> '$NewBranch' with auto-ref tracking..." -ForegroundColor Cyan
-    git -C $RepoPath branch -m $curr $NewBranch
+    $curr = (git -C $RepoPath branch --show-current 2>$null)
+    if (-not $curr) {
+        $curr = (git -C $RepoPath symbolic-ref --short HEAD 2>$null)
+    }
+    if ($curr) { $curr = $curr.Trim() } else { $curr = "HEAD" }
+    Write-Host "[ADAPTER v02-40-00] Renaming branch '$curr' -> '$NewBranch'..." -ForegroundColor Cyan
+    git -C $RepoPath branch -m $NewBranch
     if ($LASTEXITCODE -eq 0) {
         Write-Host "[OK] Local branch renamed to '$NewBranch'." -ForegroundColor Green
     }

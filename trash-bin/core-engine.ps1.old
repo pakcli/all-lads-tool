@@ -1,0 +1,332 @@
+<#
+.SYNOPSIS
+    PolyClip Core Engine: JIT Detection, History Persistence, and Clipboard Modes
+.DESCRIPTION
+    Component of detector-clipboard-4-mode suite.
+    Handles persistent history (JSON), system clipboard inspection, and mode application.
+#>
+
+# Global History Cache
+if (-not $global:PolyClipHistory) {
+    $global:PolyClipHistory = [System.Collections.Generic.List[PSCustomObject]]::new()
+}
+
+# Conforms to Skill: save-option-as-exact-executor-name-json
+$script:ExecutorBaseName = "detector-clipboard-4-mode"
+$script:OptionsFile = if (Test-Path (Join-Path $PSScriptRoot "..")) {
+    Join-Path (Resolve-Path (Join-Path $PSScriptRoot "..")).Path "$($script:ExecutorBaseName).json"
+} else {
+    Join-Path $PSScriptRoot "$($script:ExecutorBaseName).json"
+}
+
+# Timestamp to silence live watcher during internal PolyClip clipboard writes
+$script:suppressLiveCaptureUntil = [DateTime]::MinValue
+
+function Load-PersistentHistory {
+    $fileToRead = if (Test-Path -LiteralPath $script:OptionsFile) {
+        $script:OptionsFile
+    } elseif (Test-Path "E:\proj\all-lads-tool\polyclip-history.json") {
+        "E:\proj\all-lads-tool\polyclip-history.json"
+    } else {
+        $null
+    }
+
+    if ($fileToRead) {
+        try {
+            $raw = Get-Content -LiteralPath $fileToRead -Raw -ErrorAction SilentlyContinue
+            if (-not [string]::IsNullOrWhiteSpace($raw)) {
+                $list = $raw | ConvertFrom-Json
+                $global:PolyClipHistory.Clear()
+                foreach ($item in $list) {
+                    $global:PolyClipHistory.Add([PSCustomObject]$item)
+                }
+            }
+        } catch {}
+    }
+}
+
+function Save-PersistentHistory {
+    try {
+        $clean = [System.Collections.Generic.List[object]]::new()
+        foreach ($item in $global:PolyClipHistory) {
+            $t = [string]$item.Mode1_Text
+            # Filter out corrupt/bogus hash stringifications
+            if ($t -notlike '@{value=*' -and $t -notlike '@{Id=*' -and $item.FileName -ne 'polyclip-history.json') {
+                $clean.Add($item)
+            }
+        }
+        $json = $clean | ConvertTo-Json -Depth 4
+        Set-Content -LiteralPath $script:OptionsFile -Value $json -Encoding UTF8 -Force
+    } catch {}
+}
+
+function Test-IsFileOpenableText {
+    param ([string]$FilePath)
+
+    if (-not (Test-Path -LiteralPath $FilePath)) { return $false }
+    try {
+        $item = Get-Item -LiteralPath $FilePath -ErrorAction Stop
+        if ($item -isnot [System.IO.FileInfo]) { return $false }
+        if ($item.Length -gt 5MB) { return $false }
+
+        $openableExts = @(
+            ".txt", ".md", ".json", ".csv", ".ps1", ".psm1", ".bat", ".cmd",
+            ".py", ".js", ".ts", ".html", ".css", ".scss", ".xml", ".yaml", ".yml",
+            ".ini", ".cfg", ".log", ".env", ".cs", ".cpp", ".c", ".h", ".rs", ".go"
+        )
+        if ($openableExts -contains $item.Extension.ToLower()) {
+            return $true
+        }
+
+        # Sample first 512 bytes for null byte inspection
+        $bytes = [System.IO.File]::ReadAllBytes($item.FullName)
+        $sampleLen = [math]::Min($bytes.Length, 512)
+        for ($i = 0; $i -lt $sampleLen; $i++) {
+            if ($bytes[$i] -eq 0) { return $false }
+        }
+        return $true
+    } catch {
+        return $false
+    }
+}
+
+function Format-FileSize {
+    param ([long]$Bytes)
+    if ($Bytes -lt 1KB) { return "$Bytes B" }
+    if ($Bytes -lt 1MB) { return "{0:N1} KB" -f ($Bytes / 1KB) }
+    if ($Bytes -lt 1GB) { return "{0:N1} MB" -f ($Bytes / 1MB) }
+    return "{0:N1} GB" -f ($Bytes / 1GB)
+}
+
+function Get-First15Chars {
+    param ([string]$Content)
+    if ([string]::IsNullOrWhiteSpace($Content)) { return "-" }
+    
+    $lines = $Content -split "\r?\n"
+    $firstLine = ""
+    foreach ($line in $lines) {
+        $trimmed = $line.Trim()
+        if (-not [string]::IsNullOrWhiteSpace($trimmed)) {
+            $firstLine = $trimmed
+            break
+        }
+    }
+    if ([string]::IsNullOrWhiteSpace($firstLine)) { return "-" }
+
+    if ($firstLine.Length -gt 15) {
+        return $firstLine.Substring(0, 15) + "..."
+    }
+    return $firstLine
+}
+
+function Get-ClipboardSnapshot {
+    $rawType = "UNKNOWN"
+    $rawText = $null
+    $fileDropList = $null
+    $detectedPath = $null
+
+    try {
+        if ([System.Windows.Forms.Clipboard]::ContainsFileDropList()) {
+            $fileDropList = [System.Windows.Forms.Clipboard]::GetFileDropList()
+            if ($fileDropList -and $fileDropList.Count -gt 0) {
+                $rawType = "CF_HDROP"
+                $detectedPath = $fileDropList[0]
+            }
+        }
+    } catch {}
+
+    if (-not $detectedPath) {
+        try {
+            if ([System.Windows.Forms.Clipboard]::ContainsText()) {
+                $rawText = [System.Windows.Forms.Clipboard]::GetText()
+                if (-not [string]::IsNullOrWhiteSpace($rawText)) {
+                    $rawType = "TEXT"
+                }
+            }
+        } catch {}
+    }
+
+    if ($rawType -eq "TEXT" -and $rawText) {
+        $cleaned = $rawText.Trim().Trim('"').Trim("'")
+        if ($cleaned -match '^[a-zA-Z]:\\|^\\\\') {
+            if (Test-Path -LiteralPath $cleaned) {
+                $detectedPath = (Resolve-Path -LiteralPath $cleaned).Path
+            }
+        }
+    }
+
+    $fileName = "-"
+    $fileSizeStr = "-"
+    $isOpenable = $false
+    $openStatus = "UNREADABLE"
+    $mode1 = if ($rawText) { $rawText } elseif ($detectedPath) { $detectedPath } else { "" }
+    $mode2 = if ($detectedPath) { $detectedPath } else { "" }
+    $mode3 = ""
+    $mode4 = if ($detectedPath) { $detectedPath } else { "" }
+
+    if ($detectedPath -and (Test-Path -LiteralPath $detectedPath)) {
+        try {
+            $item = Get-Item -LiteralPath $detectedPath -ErrorAction SilentlyContinue
+            if ($item -is [System.IO.FileInfo]) {
+                $fileName = $item.Name
+                $fileSizeStr = Format-FileSize -Bytes $item.Length
+
+                if (Test-IsFileOpenableText -FilePath $item.FullName) {
+                    $isOpenable = $true
+                    $openStatus = "OPENABLE"
+                    try {
+                        $mode3 = Get-Content -LiteralPath $item.FullName -Raw -Encoding UTF8 -ErrorAction Stop
+                    } catch {
+                        $mode3 = [System.IO.File]::ReadAllText($item.FullName)
+                    }
+                } else {
+                    $openStatus = "BINARY"
+                }
+            } else {
+                $fileName = $item.Name
+                $openStatus = "DIRECTORY"
+            }
+        } catch {
+            $openStatus = "ACCESS_ERROR"
+        }
+    }
+
+    $snapshot = [PSCustomObject]@{
+        Id            = [guid]::NewGuid().ToString().Substring(0, 6)
+        Timestamp     = (Get-Date -Format "HH:mm:ss")
+        RawType       = $rawType
+        DetectedPath  = $detectedPath
+        FileName      = $fileName
+        FileSizeStr   = $fileSizeStr
+        IsOpenable    = $isOpenable
+        OpenStatus    = $openStatus
+        Mode1_Text    = $mode1
+        Mode2_Path    = $mode2
+        Mode3_Content = $mode3
+        Mode4_File    = $mode4
+    }
+
+    # Smart duplicate detection: checks if top history item already matches by path or text
+    $isDuplicate = $false
+    if ($global:PolyClipHistory.Count -gt 0) {
+        $top = $global:PolyClipHistory[0]
+        if ($snapshot.Mode2_Path -and $top.Mode2_Path -eq $snapshot.Mode2_Path) {
+            $isDuplicate = $true
+        } elseif ($snapshot.Mode1_Text -and $top.Mode1_Text -eq $snapshot.Mode1_Text) {
+            $isDuplicate = $true
+        }
+    }
+
+    if (-not $isDuplicate -and (-not [string]::IsNullOrWhiteSpace($snapshot.Mode1_Text) -or -not [string]::IsNullOrWhiteSpace($snapshot.Mode2_Path))) {
+        # Filter out bogus PowerShell hash stringifications
+        if (-not ($snapshot.Mode1_Text -like "@{value=*" -or $snapshot.Mode1_Text -like "@{Id=*")) {
+            $global:PolyClipHistory.Insert(0, $snapshot)
+            if ($global:PolyClipHistory.Count -gt 50) {
+                $global:PolyClipHistory.RemoveAt(50)
+            }
+            Save-PersistentHistory
+        }
+    }
+
+    return $snapshot
+}
+
+function Invoke-ApplyMode {
+    param (
+        [int]$TargetMode,
+        [PSCustomObject]$Snapshot
+    )
+
+    if (-not $Snapshot) { return "No snapshot provided." }
+
+    # Suppress live watcher to prevent capturing internal PolyClip copy actions
+    $script:suppressLiveCaptureUntil = [DateTime]::UtcNow.AddMilliseconds(2000)
+
+    switch ($TargetMode) {
+        1 {
+            if ($Snapshot.Mode1_Text) {
+                $val = [string]$Snapshot.Mode1_Text
+                try { Set-Clipboard -Value $val } catch { [System.Windows.Forms.Clipboard]::SetText($val) }
+                return "Applied Mode 1 (Plain Text)"
+            }
+        }
+        2 {
+            if ($Snapshot.Mode2_Path -and (Test-Path -LiteralPath $Snapshot.Mode2_Path)) {
+                $val = [string]$Snapshot.Mode2_Path
+                try { Set-Clipboard -Value $val } catch { [System.Windows.Forms.Clipboard]::SetText($val) }
+                return "Applied Mode 2 (File Path)"
+            }
+            return "Mode 2 Blocked: File no longer exists on disk."
+        }
+        3 {
+            if ($Snapshot.IsOpenable -and $Snapshot.Mode3_Content) {
+                $val = if ($Snapshot.Mode3_Content -is [string]) { $Snapshot.Mode3_Content } elseif ($Snapshot.Mode3_Content.value) { [string]$Snapshot.Mode3_Content.value } else { [string]$Snapshot.Mode3_Content }
+                try { Set-Clipboard -Value $val } catch { [System.Windows.Forms.Clipboard]::SetText($val) }
+                return "Applied Mode 3 (File Content)"
+            }
+            return "Mode 3 Blocked (? Binary or Unreadable)"
+        }
+        4 {
+            if ($Snapshot.Mode4_File -and (Test-Path -LiteralPath $Snapshot.Mode4_File)) {
+                $sc = New-Object System.Collections.Specialized.StringCollection
+                $sc.Add([string]$Snapshot.Mode4_File) | Out-Null
+                [System.Windows.Forms.Clipboard]::SetFileDropList($sc)
+                return "Applied Mode 4 (CF_HDROP File Drop)"
+            }
+            return "Mode 4 Blocked: File no longer exists on disk."
+        }
+    }
+    return "Mode $TargetMode could not be applied."
+}
+
+function Promote-ToFirst {
+    param ($Item)
+    if (-not $Item) { return $null }
+
+    # Suppress live watcher to avoid double-capturing PolyClip's own clipboard write
+    $script:suppressLiveCaptureUntil = [DateTime]::UtcNow.AddMilliseconds(2000)
+
+    $dup = [PSCustomObject]@{
+        Id            = [guid]::NewGuid().ToString().Substring(0, 6)
+        Timestamp     = (Get-Date -Format "HH:mm:ss")
+        RawType       = $Item.RawType
+        DetectedPath  = $Item.DetectedPath
+        FileName      = $Item.FileName
+        FileSizeStr   = $Item.FileSizeStr
+        IsOpenable    = $Item.IsOpenable
+        OpenStatus    = $Item.OpenStatus
+        Mode1_Text    = $Item.Mode1_Text
+        Mode2_Path    = $Item.Mode2_Path
+        Mode3_Content = $Item.Mode3_Content
+        Mode4_File    = $Item.Mode4_File
+    }
+    $global:PolyClipHistory.Insert(0, $dup)
+    if ($global:PolyClipHistory.Count -gt 50) {
+        $global:PolyClipHistory.RemoveAt(50)
+    }
+    Save-PersistentHistory
+
+    if ($dup.RawType -eq "CF_HDROP" -and $dup.Mode4_File -and (Test-Path -LiteralPath $dup.Mode4_File)) {
+        try {
+            $sc = New-Object System.Collections.Specialized.StringCollection
+            $sc.Add([string]$dup.Mode4_File) | Out-Null
+            [System.Windows.Forms.Clipboard]::SetFileDropList($sc)
+        } catch {}
+    } else {
+        $clipVal = if ($dup.IsOpenable -and $dup.Mode3_Content) {
+            if ($dup.Mode3_Content -is [string]) { $dup.Mode3_Content } elseif ($dup.Mode3_Content.value) { [string]$dup.Mode3_Content.value } else { [string]$dup.Mode3_Content }
+        } elseif ($dup.Mode2_Path -and $dup.Mode2_Path -ne "-") {
+            $dup.Mode2_Path
+        } else {
+            [string]$dup.Mode1_Text
+        }
+        if ($clipVal -and -not ($clipVal -like "@{value=*" -or $clipVal -like "@{Id=*")) {
+            try {
+                Set-Clipboard -Value ([string]$clipVal)
+            } catch {
+                try { [System.Windows.Forms.Clipboard]::SetText([string]$clipVal) } catch {}
+            }
+        }
+    }
+    return $dup
+}
