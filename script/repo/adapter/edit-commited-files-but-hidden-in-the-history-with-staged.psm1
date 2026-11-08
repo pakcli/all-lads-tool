@@ -2,10 +2,10 @@
 .SYNOPSIS
     Adapter Engine for Historical Commit File Overwrite (edit-commited-files-but-hidden-in-the-history-with-staged.psm1)
 .DESCRIPTION
-    Provides the 5-option file state & custom-path resolution engine (Options 1..4 2x2 matrix + Option 5 Custom Path
-    with folder/file scope detection and new-file sub-prompt), pre-flight commit inspection,
-    original-timestamp HEAD amend, and non-interactive autosquash rebase for replacing files
-    inside an existing commit without adding extra fixup commits in git history.
+    Provides the 5-option + 'L'/'all' (All Commit State) file state & custom-path resolution engine,
+    pre-flight commit inspection, original-timestamp HEAD amend, non-interactive autosquash rebase,
+    and full-history index-filter rewrite ('L' / 'all') for replacing files across single or all commits
+    in git history.
 #>
 
 function Invoke-GitRepoCommand {
@@ -107,7 +107,24 @@ function Get-DiscoveredGitRepositories {
         }
     }
 
-    return ,($repos | Sort-Object FullPath)
+    return @($repos | Sort-Object FullPath)
+}
+
+function Get-RepoTotalCommitCount {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoPath
+    )
+
+    $countRes = Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @("rev-list", "--count", "HEAD")
+    if ($countRes.Success -and $countRes.Output.Count -gt 0) {
+        $parsed = 0
+        if ([int]::TryParse($countRes.Output[0].Trim(), [ref]$parsed)) {
+            return $parsed
+        }
+    }
+    return 0
 }
 
 function Get-RepoRecentCommits {
@@ -116,19 +133,31 @@ function Get-RepoRecentCommits {
         [Parameter(Mandatory = $true)]
         [string]$RepoPath,
 
-        [int]$Limit = 15
+        [int]$Limit = 20,
+
+        [int]$Skip = 0
     )
 
     $headRes = Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @("rev-parse", "HEAD")
     $headFull = if ($headRes.Success -and $headRes.Output.Count -gt 0) { $headRes.Output[0].Trim() } else { "" }
 
-    $logRes = Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @(
-        "log", "-n", "$Limit", "--pretty=format:%h|%H|%ad|%an|%s", "--date=short"
-    )
-    $commits = [System.Collections.Generic.List[object]]::new()
-    if (-not $logRes.Success) { return ,$commits.ToArray() }
+    $logArgs = [System.Collections.Generic.List[string]]::new()
+    [void]$logArgs.Add("log")
+    if ($Skip -gt 0) {
+        [void]$logArgs.Add("--skip=$Skip")
+    }
+    if ($Limit -gt 0) {
+        [void]$logArgs.Add("-n")
+        [void]$logArgs.Add("$Limit")
+    }
+    [void]$logArgs.Add("--pretty=format:%h|%H|%ad|%an|%s")
+    [void]$logArgs.Add("--date=short")
 
-    $idx = 1
+    $logRes = Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs $logArgs.ToArray()
+    $commits = [System.Collections.Generic.List[object]]::new()
+    if (-not $logRes.Success) { return @() }
+
+    $idx = $Skip + 1
     foreach ($line in $logRes.Output) {
         if ([string]::IsNullOrWhiteSpace($line)) { continue }
         $parts = $line -split '\|', 5
@@ -146,7 +175,7 @@ function Get-RepoRecentCommits {
             $idx++
         }
     }
-    return ,$commits.ToArray()
+    return $commits.ToArray()
 }
 
 function Resolve-TargetCommit {
@@ -164,6 +193,47 @@ function Resolve-TargetCommit {
     $cleanInput = $CommitInput.Trim()
     if ([string]::IsNullOrWhiteSpace($cleanInput)) {
         return $null
+    }
+
+    # Check if user entered 'L' or 'all' -> ALL COMMIT STATE (Rewrite across all commits in branch history)
+    if ($cleanInput -ieq "L" -or $cleanInput -ieq "all") {
+        $headRes = Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @("rev-parse", "HEAD")
+        if (-not $headRes.Success -or $headRes.Output.Count -eq 0) { return $null }
+        $headFull = $headRes.Output[0].Trim()
+
+        $countRes = Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @("rev-list", "--count", "HEAD")
+        $totalCount = if ($countRes.Success -and $countRes.Output.Count -gt 0) { [int]($countRes.Output[0].Trim()) } else { 1 }
+
+        $metaRes = Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @(
+            "show", "-s", "--format=%h|%ad|%cI|%aI|%an|%s", "--date=short", $headFull
+        )
+        $parts = if ($metaRes.Success -and $metaRes.Output.Count -gt 0) {
+            $metaRes.Output[0] -split '\|', 6
+        } else {
+            @("ALL", (Get-Date -Format "yyyy-MM-dd"), (Get-Date -Format "o"), (Get-Date -Format "o"), "", "All Commits")
+        }
+
+        $remoteRes = Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @("branch", "-r", "--contains", $headFull)
+        $remoteBranches = @()
+        if ($remoteRes.Success) {
+            $remoteBranches = @($remoteRes.Output | ForEach-Object { $_.Trim() } | Where-Object { $_ -ne "" })
+        }
+
+        return [PSCustomObject]@{
+            ShortHash      = "ALL ($totalCount commits)"
+            FullHash       = $headFull
+            DateShort      = $parts[1].Trim()
+            CommitDateIso  = $parts[2].Trim()
+            AuthorDateIso  = $parts[3].Trim()
+            Author         = $parts[4].Trim()
+            Subject        = "All Commit State - Overwrite across all $totalCount commit(s) in history"
+            IsHead         = $false
+            IsAllCommits   = $true
+            TotalCommits   = $totalCount
+            IsRootCommit   = $true
+            IsPushedRemote = ($remoteBranches.Count -gt 0)
+            RemoteBranches = $remoteBranches
+        }
     }
 
     $targetRef = $cleanInput
@@ -209,6 +279,8 @@ function Resolve-TargetCommit {
         Author         = $parts[4].Trim()
         Subject        = $parts[5].Trim()
         IsHead         = ($fullHash -eq $headFull)
+        IsAllCommits   = $false
+        TotalCommits   = 1
         IsRootCommit   = $isRootCommit
         IsPushedRemote = ($remoteBranches.Count -gt 0)
         RemoteBranches = $remoteBranches
@@ -219,18 +291,20 @@ function Get-OptionDescription {
     [CmdletBinding()]
     param(
         [int]$Option,
-        [string]$CustomScopeSummary = ""
+        [string]$CustomScopeSummary = "",
+        [bool]$IsAllCommits = $false
     )
+    $suffix = if ($IsAllCommits) { " [ALL COMMITS STATE]" } else { "" }
     switch ($Option) {
-        1 { return "Option 1: Overwrite staged files | type state: modified (Staged M only)" }
-        2 { return "Option 2: Overwrite staged files | type state: all (Staged M/A/D/R)" }
-        3 { return "Option 3: Overwrite all files    | type state: modified (Staged + Unstaged M only)" }
-        4 { return "Option 4: Overwrite all files    | type state: all (All Staged + Unstaged + Untracked)" }
+        1 { return "Option 1: Overwrite staged files | type state: modified (Staged M only)$suffix" }
+        2 { return "Option 2: Overwrite staged files | type state: all (Staged M/A/D/R)$suffix" }
+        3 { return "Option 3: Overwrite all files    | type state: modified (Staged + Unstaged M only)$suffix" }
+        4 { return "Option 4: Overwrite all files    | type state: all (All Staged + Unstaged + Untracked)$suffix" }
         5 {
             if ($CustomScopeSummary) {
-                return "Option 5: Custom path ($CustomScopeSummary)"
+                return "Option 5: Custom path ($CustomScopeSummary)$suffix"
             }
-            return "Option 5: Custom path (Folder scope: path/subfolder | Exact file: path/subfolder/file.ext)"
+            return "Option 5: Custom path (Folder scope: path/subfolder | Exact file: path/subfolder/file.ext)$suffix"
         }
         default { return "Unknown Option" }
     }
@@ -243,7 +317,9 @@ function Resolve-CustomScopeTarget {
         [string]$RepoPath,
 
         [Parameter(Mandatory = $true)]
-        [string]$RawCustomPath
+        [string]$RawCustomPath,
+
+        [bool]$AllowCleanTrackedFiles = $false
     )
 
     $clean = $RawCustomPath.Trim().Trim('"', "'")
@@ -251,17 +327,34 @@ function Resolve-CustomScopeTarget {
         return [PSCustomObject]@{ IsValid = $false; ErrorMessage = "Custom path cannot be empty." }
     }
 
-    $repoRootNorm = (Resolve-Path -LiteralPath $RepoPath).Path.TrimEnd('\', '/')
+    $repoRootNorm = (Get-Item -LiteralPath $RepoPath -Force).FullName.TrimEnd('\', '/')
+    $repoLeafName = Split-Path -Leaf $repoRootNorm
     $fullTarget = ""
     $relTarget = ""
 
-    # Determine if input is a rooted path from drive (e.g. E:\proj\... or /...) or relative to repo
-    if ([System.IO.Path]::IsPathRooted($clean) -and $clean -match '^[a-zA-Z]:[\\/]') {
-        $candidateFull = [System.IO.Path]::GetFullPath($clean).TrimEnd('\', '/')
-        if (-not $candidateFull.StartsWith($repoRootNorm, [System.StringComparison]::OrdinalIgnoreCase)) {
+    # 1. Check if input is a Full Drive Path (e.g. E:\proj\repo\sub\file.md or E:/proj/repo/sub)
+    #    or a drive-root path (\proj\repo\sub\file.md) that resolves inside $repoRootNorm
+    $isDriveRooted = ($clean -match '^[a-zA-Z]:[\\/]')
+    $isSlashRootedInsideRepo = $false
+    if (-not $isDriveRooted -and $clean -match '^[\\/]') {
+        try {
+            $probeRooted = [System.IO.Path]::GetFullPath(($clean -replace '/', '\')).TrimEnd('\', '/')
+            if ($probeRooted -ieq $repoRootNorm -or $probeRooted.StartsWith("$repoRootNorm\", [System.StringComparison]::OrdinalIgnoreCase)) {
+                $isSlashRootedInsideRepo = $true
+            }
+        } catch {}
+    }
+
+    if ($isDriveRooted -or $isSlashRootedInsideRepo) {
+        $candidateFull = [System.IO.Path]::GetFullPath(($clean -replace '/', '\')).TrimEnd('\', '/')
+        if (Test-Path -LiteralPath $candidateFull) {
+            $candidateFull = (Get-Item -LiteralPath $candidateFull -Force).FullName.TrimEnd('\', '/')
+        }
+        $isInsideRepo = ($candidateFull -ieq $repoRootNorm) -or $candidateFull.StartsWith("$repoRootNorm\", [System.StringComparison]::OrdinalIgnoreCase)
+        if (-not $isInsideRepo) {
             return [PSCustomObject]@{
                 IsValid      = $false
-                ErrorMessage = "Rooted path '$candidateFull' is outside repository '$repoRootNorm'."
+                ErrorMessage = "Full drive path '$candidateFull' is outside selected repository '$repoRootNorm'."
             }
         }
         $fullTarget = $candidateFull
@@ -271,28 +364,63 @@ function Resolve-CustomScopeTarget {
             $relTarget = "."
         }
     } else {
+        # 2. Repo-Relative Path (e.g. brief\file.md, brief/file.md, .\brief\file.md)
+        #    or Workspace-Relative Path with repo prefix (e.g. repo-name\brief\file.md)
         $relClean = $clean -replace '^\.[\\/]', '' -replace '\\', '/'
         $relClean = $relClean.TrimStart('/').TrimEnd('/')
         if ([string]::IsNullOrWhiteSpace($relClean)) { $relClean = "." }
-        $relTarget = $relClean
-        $fullTarget = if ($relTarget -eq ".") { $repoRootNorm } else { Join-Path $repoRootNorm ($relTarget -replace '/', '\') }
+
+        if ($relClean -ieq $repoLeafName) {
+            $relClean = "."
+        } elseif ($relClean.StartsWith("$repoLeafName/", [System.StringComparison]::OrdinalIgnoreCase)) {
+            $directInsideRepo = Join-Path $repoRootNorm ($relClean -replace '/', '\')
+            if (-not (Test-Path -LiteralPath $directInsideRepo)) {
+                $relClean = $relClean.Substring($repoLeafName.Length + 1).TrimStart('/')
+                if ([string]::IsNullOrWhiteSpace($relClean)) { $relClean = "." }
+            }
+        } else {
+            $directInsideRepo = Join-Path $repoRootNorm ($relClean -replace '/', '\')
+            if (-not (Test-Path -LiteralPath $directInsideRepo)) {
+                try {
+                    $cwdCandidate = [System.IO.Path]::GetFullPath((Join-Path (Get-Location).Path ($clean -replace '/', '\'))).TrimEnd('\', '/')
+                    if ($cwdCandidate -ieq $repoRootNorm -or $cwdCandidate.StartsWith("$repoRootNorm\", [System.StringComparison]::OrdinalIgnoreCase)) {
+                        if ($cwdCandidate.Length -gt $repoRootNorm.Length) {
+                            $relClean = $cwdCandidate.Substring($repoRootNorm.Length).TrimStart('\', '/') -replace '\\', '/'
+                        } else {
+                            $relClean = "."
+                        }
+                    }
+                } catch {}
+            }
+        }
+
+        $candidateRepoFull = if ($relClean -eq ".") { $repoRootNorm } else { Join-Path $repoRootNorm ($relClean -replace '/', '\') }
+        if (Test-Path -LiteralPath $candidateRepoFull) {
+            $exactDiskFull = (Get-Item -LiteralPath $candidateRepoFull -Force).FullName.TrimEnd('\', '/')
+            $fullTarget = $exactDiskFull
+            if ($exactDiskFull.Length -gt $repoRootNorm.Length) {
+                $relTarget = $exactDiskFull.Substring($repoRootNorm.Length).TrimStart('\', '/') -replace '\\', '/'
+            } else {
+                $relTarget = "."
+            }
+        } else {
+            $relTarget = $relClean
+            $fullTarget = $candidateRepoFull
+        }
     }
 
-    # Determine Folder Scope vs. Exact Single-File Scope
     $scopeType = "Folder"
     if (Test-Path -LiteralPath $fullTarget -PathType Leaf) {
         $scopeType = "File"
     } elseif (Test-Path -LiteralPath $fullTarget -PathType Container) {
         $scopeType = "Folder"
     } else {
-        # If deleted or not currently on disk, check whether path has a file extension or matches an exact tracked file
         $ext = [System.IO.Path]::GetExtension($relTarget)
         if (-not [string]::IsNullOrWhiteSpace($ext)) {
             $scopeType = "File"
         }
     }
 
-    # Query git status for this path scope
     $gitArgs = if ($relTarget -eq ".") {
         @("status", "--porcelain=v1", "-uall")
     } else {
@@ -315,8 +443,7 @@ function Resolve-CustomScopeTarget {
                 $rawFile = $Matches['dest'].Trim().Trim('"')
             }
 
-            # If ScopeType is File, enforce exact path match
-            if ($scopeType -eq "File" -and ($rawFile -replace '\\', '/') -ne ($relTarget -replace '\\', '/')) {
+            if ($scopeType -eq "File" -and ($rawFile -replace '\\', '/') -ine ($relTarget -replace '\\', '/')) {
                 continue
             }
 
@@ -343,14 +470,49 @@ function Resolve-CustomScopeTarget {
         }
     }
 
+    if ($allScopedFiles.Count -eq 0 -and $AllowCleanTrackedFiles -and (Test-Path -LiteralPath $fullTarget)) {
+        $lsArgs = if ($relTarget -eq ".") { @("ls-files") } else { @("ls-files", "--", $relTarget) }
+        $lsRes = Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs $lsArgs
+        if ($lsRes.Success) {
+            foreach ($trackedLine in $lsRes.Output) {
+                $tf = $trackedLine.Trim().Trim('"')
+                if ([string]::IsNullOrWhiteSpace($tf)) { continue }
+                if ($scopeType -eq "File" -and ($tf -replace '\\', '/') -ine ($relTarget -replace '\\', '/')) { continue }
+                if (-not $seen.Add($tf)) { continue }
+                $itemObj = [PSCustomObject]@{
+                    RelativePath = $tf
+                    StateCode    = "M"
+                    ScopeSource  = if ($scopeType -eq "File") { "Custom Exact File ($relTarget)" } else { "Custom Folder Scope ($relTarget)" }
+                    IsNewFile    = $false
+                    IsModified   = $true
+                }
+                [void]$allScopedFiles.Add($itemObj)
+                [void]$modifiedOnlyFiles.Add($itemObj)
+            }
+        }
+    }
+
+    if ($allScopedFiles.Count -eq 0) {
+        if (-not (Test-Path -LiteralPath $fullTarget)) {
+            return [PSCustomObject]@{
+                IsValid      = $false
+                ErrorMessage = "Custom path '$relTarget' was not found inside repository '$repoRootNorm'."
+            }
+        }
+        return [PSCustomObject]@{
+            IsValid      = $false
+            ErrorMessage = "Custom path '$relTarget' has 0 modified/staged/untracked files in git status."
+        }
+    }
+
     return [PSCustomObject]@{
         IsValid           = $true
         ScopeType         = $scopeType
         RelativeTarget    = $relTarget
         FullTarget        = $fullTarget
-        AllScopedFiles    = ,$allScopedFiles.ToArray()
-        ModifiedOnlyFiles = ,$modifiedOnlyFiles.ToArray()
-        NewFilesDetected  = ,$newFilesDetected.ToArray()
+        AllScopedFiles    = $allScopedFiles.ToArray()
+        ModifiedOnlyFiles = $modifiedOnlyFiles.ToArray()
+        NewFilesDetected  = $newFilesDetected.ToArray()
         HasNewFiles       = ($newFilesDetected.Count -gt 0)
     }
 }
@@ -362,15 +524,15 @@ function Get-CandidateFilesByOption {
         [string]$RepoPath,
 
         [Parameter(Mandatory = $true)]
-        [ValidateRange(1, 4)]
+        [ValidateRange(1, 5)]
         [int]$Option
     )
 
+    $effectiveOpt = $Option
     $results = [System.Collections.Generic.List[object]]::new()
     $seenFiles = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
 
-    if ($Option -in @(1, 2)) {
-        # Staged files only (Index)
+    if ($effectiveOpt -in @(1, 2)) {
         $stagedRes = Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @("diff", "--cached", "--name-status")
         if ($stagedRes.Success) {
             foreach ($line in $stagedRes.Output) {
@@ -381,7 +543,7 @@ function Get-CandidateFilesByOption {
                     $statusChar = $statusRaw.Substring(0, 1).ToUpperInvariant()
                     $filePath = if ($parts.Count -ge 3 -and ($statusChar -in @("R", "C"))) { $parts[2].Trim() } else { $parts[1].Trim() }
 
-                    if ($Option -eq 1 -and $statusChar -ne "M") {
+                    if ($effectiveOpt -eq 1 -and $statusChar -ne "M") {
                         continue
                     }
 
@@ -395,8 +557,7 @@ function Get-CandidateFilesByOption {
                 }
             }
         }
-    } elseif ($Option -eq 3) {
-        # All files (Staged + Working Tree) | type state: modified (M only)
+    } elseif ($effectiveOpt -eq 3) {
         $stagedRes = Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @("diff", "--cached", "--name-status")
         if ($stagedRes.Success) {
             foreach ($line in $stagedRes.Output) {
@@ -434,8 +595,7 @@ function Get-CandidateFilesByOption {
                 }
             }
         }
-    } elseif ($Option -eq 4) {
-        # All files (Staged + Working Tree + Untracked) | type state: all
+    } elseif ($effectiveOpt -eq 4) {
         $statusRes = Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @("status", "--porcelain=v1", "-uall")
         if ($statusRes.Success) {
             foreach ($line in $statusRes.Output) {
@@ -456,7 +616,7 @@ function Get-CandidateFilesByOption {
         }
     }
 
-    return ,$results.ToArray()
+    return $results.ToArray()
 }
 
 function Invoke-CommitFileOverwrite {
@@ -499,9 +659,80 @@ function Invoke-CommitFileOverwrite {
     $excludedStagedPaths = @()
 
     try {
-        # 2. Prepare staging area strictly according to Option (1..5)
+        # ======================================================================
+        # CASE C: ALL COMMIT STATE ($TargetCommit.IsAllCommits == $true)
+        # Overwrites the matched files across ALL commits in branch history
+        # ======================================================================
+        if ($TargetCommit.IsAllCommits) {
+            $filterStatements = [System.Collections.Generic.List[string]]::new()
+
+            foreach ($cf in $CandidateFiles) {
+                $normRel = ($cf.RelativePath -replace '\\', '/')
+                $fullDiskPath = Join-Path $RepoPath ($cf.RelativePath -replace '/', '\')
+
+                if (Test-Path -LiteralPath $fullDiskPath -PathType Leaf) {
+                    $hashRes = Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @("hash-object", "-w", "--", $fullDiskPath)
+                    if ($hashRes.Success -and $hashRes.Output.Count -gt 0) {
+                        $blobSha = $hashRes.Output[0].Trim()
+                        # Replace blob in every commit where this path exists in the commit's index
+                        [void]$filterStatements.Add("if git rev-parse -q --verify `":$normRel`" >/dev/null 2>&1; then git update-index --add --cacheinfo 100644,$blobSha,`"$normRel`"; fi")
+                    }
+                } else {
+                    # File was deleted -> remove from index across commits where it existed
+                    [void]$filterStatements.Add("git rm --cached --ignore-unmatch -- `"$normRel`" >/dev/null 2>&1")
+                }
+            }
+
+            if ($filterStatements.Count -gt 0) {
+                $indexFilterScript = $filterStatements -join "; "
+                $prevSquelch = $env:FILTER_BRANCH_SQUELCH_WARNING
+                $env:FILTER_BRANCH_SQUELCH_WARNING = "1"
+                try {
+                    $fbRes = Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @(
+                        "filter-branch", "-f", "--index-filter", $indexFilterScript, "--", "HEAD"
+                    )
+                    if (-not $fbRes.Success) {
+                        return [PSCustomObject]@{
+                            Success   = $false
+                            BackupRef = $backupRef
+                            Message   = "All-commit-state filter-branch failed: $($fbRes.Output -join ' ')"
+                        }
+                    }
+                } finally {
+                    $env:FILTER_BRANCH_SQUELCH_WARNING = $prevSquelch
+                }
+            }
+
+            # Also ensure HEAD has any newly added files from $CandidateFiles staged and amended into HEAD
+            foreach ($rp in $relPaths) {
+                [void](Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @("add", "-A", "--", $rp))
+            }
+            $stagedCheck = Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @("diff", "--cached", "--name-only")
+            if ($stagedCheck.Success -and $stagedCheck.Output.Count -gt 0) {
+                $prevCommitterDate = $env:GIT_COMMITTER_DATE
+                $env:GIT_COMMITTER_DATE = $TargetCommit.CommitDateIso
+                try {
+                    [void](Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @("commit", "--amend", "--no-edit"))
+                } finally {
+                    $env:GIT_COMMITTER_DATE = $prevCommitterDate
+                }
+            }
+
+            $newHeadRes = Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @("rev-parse", "--short", "HEAD")
+            $newHeadShort = if ($newHeadRes.Success -and $newHeadRes.Output.Count -gt 0) { $newHeadRes.Output[0].Trim() } else { "HEAD" }
+
+            return [PSCustomObject]@{
+                Success      = $true
+                NewHeadShort = $newHeadShort
+                BackupRef    = $backupRef
+                Message      = "Successfully overwrote $($CandidateFiles.Count) file(s) across ALL commits in branch history (New HEAD: $newHeadShort)."
+            }
+        }
+
+        # ======================================================================
+        # SINGLE COMMIT MODE (Options 1..5 on HEAD or specific historical SHA)
+        # ======================================================================
         if ($Option -eq 1) {
-            # Option 1: Staged M only -> temporarily unstage any non-M staged files
             $allStagedRes = Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @("diff", "--cached", "--name-status")
             if ($allStagedRes.Success) {
                 foreach ($line in $allStagedRes.Output) {
@@ -521,8 +752,6 @@ function Invoke-CommitFileOverwrite {
         } elseif ($Option -eq 2) {
             # Option 2: All currently staged files are already in the index
         } elseif ($Option -in @(3, 5)) {
-            # Option 3 (All Modified M) & Option 5 (Custom Path Scoped):
-            # Temporarily unstage any staged file that is NOT in $relPaths, then stage every file in $relPaths
             $allStagedRes = Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @("diff", "--cached", "--name-status")
             if ($allStagedRes.Success) {
                 foreach ($line in $allStagedRes.Output) {
@@ -543,17 +772,14 @@ function Invoke-CommitFileOverwrite {
                 [void](Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @("add", "-A", "--", $rp))
             }
         } elseif ($Option -eq 4) {
-            # Option 4: Stage all files (modified, added, deleted, untracked)
             [void](Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @("add", "-A"))
         }
 
-        # 3. Execute Commit File Overwrite (Case A: HEAD vs. Case B: Historical Commit)
         $prevCommitterDate = $env:GIT_COMMITTER_DATE
         $prevSeqEditor = $env:GIT_SEQUENCE_EDITOR
 
         try {
             if ($TargetCommit.IsHead) {
-                # Fast-path HEAD Amend preserving original CommitDate
                 $env:GIT_COMMITTER_DATE = $TargetCommit.CommitDateIso
                 $amendArgs = @("commit", "--amend", "--no-edit")
 
@@ -566,7 +792,6 @@ function Invoke-CommitFileOverwrite {
                     }
                 }
             } else {
-                # Historical Commit Overwrite via Fixup + Non-Interactive Autosquash Rebase
                 $fixupArgs = @("commit", "--fixup=$($TargetCommit.FullHash)")
 
                 $fixupRes = Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs $fixupArgs
@@ -591,7 +816,6 @@ function Invoke-CommitFileOverwrite {
 
                 $rebaseRes = Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs $rebaseBaseArgs
                 if (-not $rebaseRes.Success) {
-                    # Automatically abort failed rebase and restore pre-fixup state
                     [void](Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @("rebase", "--abort"))
                     [void](Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @("reset", "--soft", $origHead))
                     return [PSCustomObject]@{
@@ -606,7 +830,6 @@ function Invoke-CommitFileOverwrite {
             $env:GIT_SEQUENCE_EDITOR = $prevSeqEditor
         }
 
-        # 4. Re-stage any excluded staged files if Option 1, 3, or 5 was used
         foreach ($exPath in $excludedStagedPaths) {
             if (Test-Path -LiteralPath (Join-Path $RepoPath $exPath)) {
                 [void](Invoke-GitRepoCommand -RepoPath $RepoPath -GitArgs @("add", "--", $exPath))
@@ -711,7 +934,7 @@ function Save-CommitOverwriteOptions {
             lastCustomPath          = $CustomPath
             lastCustomNewFileAction = $CustomNewFileAction
         }
-        history   = ,$histList.ToArray()
+        history   = $histList.ToArray()
     }
 
     try {
@@ -721,10 +944,410 @@ function Save-CommitOverwriteOptions {
     return $jsonPath
 }
 
+function Read-RequiredInput {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$PromptText
+    )
+    while ($true) {
+        Write-Host -NoNewline "$PromptText" -ForegroundColor Yellow
+        $raw = Read-Host
+        if (-not [string]::IsNullOrWhiteSpace($raw)) {
+            return $raw.Trim()
+        }
+        Write-Host "  [REQUIRED] Empty Enter is disabled (No Default Enter). Please provide an explicit value or type 'q' to quit." -ForegroundColor Red
+    }
+}
+
+function Select-TargetRepositoryInteractive {
+    [CmdletBinding()]
+    param(
+        [string]$RepoParam = "",
+        [int]$PageSize = 20
+    )
+
+    if (-not [string]::IsNullOrWhiteSpace($RepoParam)) {
+        if (Test-GitRepository -Path $RepoParam) {
+            return (Resolve-Path -LiteralPath $RepoParam).Path
+        }
+        throw "[ERROR] Provided -Repo path is not a valid Git repository: $RepoParam"
+    }
+
+    $discoveredRepos = @(Get-DiscoveredGitRepositories -BasePath (Get-Location).Path)
+    $shownCount = [Math]::Min($PageSize, $discoveredRepos.Count)
+
+    Write-Host "  [ STEP 1 / 3 ] SELECT TARGET GIT REPOSITORY" -ForegroundColor Cyan
+    Write-Host "  ------------------------------------------------------------------------------" -ForegroundColor DarkGray
+    if ($discoveredRepos.Count -gt 0) {
+        for ($i = 0; $i -lt $shownCount; $i++) {
+            $r = $discoveredRepos[$i]
+            $num = $i + 1
+            Write-Host ("    [ {0,2} ] {1,-28} ({2}) [branch: {3}]" -f $num, $r.Name, $r.FullPath, $r.BranchName) -ForegroundColor Gray
+        }
+        if ($shownCount -lt $discoveredRepos.Count) {
+            Write-Host ("    [ more ] Load +{0} more repositories (showing 1..{1} of {2})" -f $PageSize, $shownCount, $discoveredRepos.Count) -ForegroundColor DarkCyan
+        }
+        Write-Host ""
+    }
+
+    while ($true) {
+        $moreHint = if ($shownCount -lt $discoveredRepos.Count) { " / 'more' (+$PageSize)" } else { "" }
+        $repoInput = Read-RequiredInput -PromptText "  >> Enter repo number [1..$shownCount]$moreHint or full repository path (or 'q' to quit): "
+        if ($repoInput -ieq "q" -or $repoInput -ieq "quit") {
+            return $null
+        }
+
+        if ($repoInput -ieq "more") {
+            if ($shownCount -ge $discoveredRepos.Count) {
+                Write-Host "  [INFO] All $($discoveredRepos.Count) discovered repositories are already displayed [1..$shownCount]." -ForegroundColor Yellow
+                continue
+            }
+            $prevShown = $shownCount
+            $shownCount = [Math]::Min($shownCount + $PageSize, $discoveredRepos.Count)
+            for ($i = $prevShown; $i -lt $shownCount; $i++) {
+                $r = $discoveredRepos[$i]
+                $num = $i + 1
+                Write-Host ("    [ {0,2} ] {1,-28} ({2}) [branch: {3}]" -f $num, $r.Name, $r.FullPath, $r.BranchName) -ForegroundColor Gray
+            }
+            if ($shownCount -lt $discoveredRepos.Count) {
+                Write-Host ("    [ more ] Load +{0} more repositories (showing 1..{1} of {2})" -f $PageSize, $shownCount, $discoveredRepos.Count) -ForegroundColor DarkCyan
+            }
+            Write-Host ""
+            continue
+        }
+
+        $idx = 0
+        if ([int]::TryParse($repoInput, [ref]$idx) -and $idx -ge 1 -and $idx -le $shownCount) {
+            return $discoveredRepos[$idx - 1].FullPath
+        }
+
+        $cleanCandidate = $repoInput.Trim('"', "'")
+        if (Test-GitRepository -Path $cleanCandidate) {
+            return (Resolve-Path -LiteralPath $cleanCandidate).Path
+        }
+
+        Write-Host "  [INVALID REPO] '$repoInput' is not a valid index [1..$shownCount] or Git repository path." -ForegroundColor Red
+    }
+}
+
+function Select-TargetCommitInteractive {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoPath,
+
+        [string]$CommitIdParam = "",
+
+        [int]$PageSize = 20
+    )
+
+    $totalCommits = Get-RepoTotalCommitCount -RepoPath $RepoPath
+    if ($totalCommits -le 0) {
+        throw "[ERROR] Repository '$RepoPath' has no commits yet."
+    }
+
+    $currentLimit = $PageSize
+    $loadedCommits = @(Get-RepoRecentCommits -RepoPath $RepoPath -Limit $currentLimit -Skip 0)
+
+    if (-not [string]::IsNullOrWhiteSpace($CommitIdParam)) {
+        $resolvedDirect = Resolve-TargetCommit -RepoPath $RepoPath -CommitInput $CommitIdParam -RecentCommits $loadedCommits
+        if (-not $resolvedDirect) {
+            throw "[ERROR] Could not resolve Commit ID '$CommitIdParam' in repository '$RepoPath'."
+        }
+        return $resolvedDirect
+    }
+
+    Write-Host "  [ STEP 2 / 3 ] SELECT TARGET COMMIT ID TO OVERWRITE INTO (1..$($loadedCommits.Count) of $totalCommits)" -ForegroundColor Cyan
+    Write-Host "  ------------------------------------------------------------------------------" -ForegroundColor DarkGray
+    foreach ($c in $loadedCommits) {
+        $headTag = if ($c.IsHead) { " (HEAD)" } else { "       " }
+        Write-Host ("    [ {0,3} ] {1}{2} | {3} | {4}" -f $c.Index, $c.ShortHash, $headTag, $c.Date, $c.Subject) -ForegroundColor Gray
+    }
+    Write-Host "  ------------------------------------------------------------------------------" -ForegroundColor DarkGray
+    if ($loadedCommits.Count -lt $totalCommits) {
+        $remaining = $totalCommits - $loadedCommits.Count
+        $nextBatchCount = [Math]::Min($PageSize, $remaining)
+        Write-Host ("    [ more    ] Load +{0} older commits (showing 1..{1} of {2})" -f $nextBatchCount, $loadedCommits.Count, $totalCommits) -ForegroundColor DarkCyan
+    }
+    Write-Host ("    [ L / all ] ALL COMMIT STATE (Overwrite file(s) across ALL {0} commits in history)" -f $totalCommits) -ForegroundColor Cyan
+    Write-Host ""
+
+    while ($true) {
+        $morePromptTag = if ($loadedCommits.Count -lt $totalCommits) { " / 'more' (+$PageSize)" } else { "" }
+        $commitInput = Read-RequiredInput -PromptText "  >> Enter commit id (SHA / HEAD / [1..$($loadedCommits.Count)]$morePromptTag / 'L' or 'all' for All Commit State, or 'q' to quit): "
+        if ($commitInput -ieq "q" -or $commitInput -ieq "quit") {
+            return $null
+        }
+
+        if ($commitInput -ieq "more") {
+            if ($loadedCommits.Count -ge $totalCommits) {
+                Write-Host "  [INFO] All $totalCommits commit(s) in branch history are already displayed [1..$($loadedCommits.Count)]." -ForegroundColor Yellow
+                continue
+            }
+
+            $prevCount = $loadedCommits.Count
+            $nextBatch = @(Get-RepoRecentCommits -RepoPath $RepoPath -Limit $PageSize -Skip $prevCount)
+            if ($nextBatch.Count -eq 0) {
+                Write-Host "  [INFO] No additional commits found beyond #$prevCount." -ForegroundColor Yellow
+                continue
+            }
+
+            $loadedCommits = @($loadedCommits + $nextBatch)
+            Write-Host ""
+            Write-Host ("  [ +$($nextBatch.Count) MORE COMMITS LOADED: #$($prevCount + 1) .. #$($loadedCommits.Count) of $totalCommits ]" ) -ForegroundColor Cyan
+            Write-Host "  ------------------------------------------------------------------------------" -ForegroundColor DarkGray
+            foreach ($c in $nextBatch) {
+                $headTag = if ($c.IsHead) { " (HEAD)" } else { "       " }
+                Write-Host ("    [ {0,3} ] {1}{2} | {3} | {4}" -f $c.Index, $c.ShortHash, $headTag, $c.Date, $c.Subject) -ForegroundColor Gray
+            }
+            Write-Host "  ------------------------------------------------------------------------------" -ForegroundColor DarkGray
+            if ($loadedCommits.Count -lt $totalCommits) {
+                $remaining = $totalCommits - $loadedCommits.Count
+                $nextBatchCount = [Math]::Min($PageSize, $remaining)
+                Write-Host ("    [ more    ] Load +{0} older commits (showing 1..{1} of {2})" -f $nextBatchCount, $loadedCommits.Count, $totalCommits) -ForegroundColor DarkCyan
+            } else {
+                Write-Host ("    [ END     ] All {0} commits in branch history are now loaded [1..{0}]" -f $totalCommits) -ForegroundColor DarkGreen
+            }
+            Write-Host ("    [ L / all ] ALL COMMIT STATE (Overwrite file(s) across ALL {0} commits in history)" -f $totalCommits) -ForegroundColor Cyan
+            Write-Host ""
+            continue
+        }
+
+        $targetCommitObj = Resolve-TargetCommit -RepoPath $RepoPath -CommitInput $commitInput -RecentCommits $loadedCommits
+        if ($targetCommitObj) {
+            return $targetCommitObj
+        }
+
+        Write-Host "  [INVALID COMMIT] '$commitInput' did not match any commit SHA, list index [1..$($loadedCommits.Count)], 'more', or 'L'/'all'." -ForegroundColor Red
+    }
+}
+
+function Select-OverwriteOptionInteractive {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoPath,
+
+        [int]$OptionParam = 0,
+
+        [string]$CustomPathParam = "",
+
+        [int]$CustomNewFileActionParam = 0,
+
+        [bool]$IsAllCommits = $false
+    )
+
+    $opt1Files = @(Get-CandidateFilesByOption -RepoPath $RepoPath -Option 1)
+    $opt2Files = @(Get-CandidateFilesByOption -RepoPath $RepoPath -Option 2)
+    $opt3Files = @(Get-CandidateFilesByOption -RepoPath $RepoPath -Option 3)
+    $opt4Files = @(Get-CandidateFilesByOption -RepoPath $RepoPath -Option 4)
+
+    $selectedOption = 0
+    if ($OptionParam -ge 1 -and $OptionParam -le 5) {
+        $selectedOption = $OptionParam
+    } else {
+        Write-Host "  [ STEP 3 / 3 ] SELECT FILE OVERWRITE OPSI (1..5)" -ForegroundColor Cyan
+        Write-Host "  ------------------------------------------------------------------------------" -ForegroundColor DarkGray
+        Write-Host ("    [ 1 ] Overwrite staged files | type state: modified   ({0} matching file(s))" -f $opt1Files.Count) -ForegroundColor Gray
+        Write-Host ("    [ 2 ] Overwrite staged files | type state: all        ({0} matching file(s))" -f $opt2Files.Count) -ForegroundColor Gray
+        Write-Host ("    [ 3 ] Overwrite all files    | type state: modified   ({0} matching file(s))" -f $opt3Files.Count) -ForegroundColor Gray
+        Write-Host ("    [ 4 ] Overwrite all files    | type state: all        ({0} matching file(s))" -f $opt4Files.Count) -ForegroundColor Gray
+        Write-Host ("    [ 5 ] Custom path            | relative or drive root (folder scope or exact file)") -ForegroundColor Gray
+        Write-Host ""
+
+        while ($selectedOption -lt 1 -or $selectedOption -gt 5) {
+            $optInput = Read-RequiredInput -PromptText "  >> Enter opsi [1 / 2 / 3 / 4 / 5] (or 'q' to quit): "
+            if ($optInput -ieq "q" -or $optInput -ieq "quit") {
+                return $null
+            }
+
+            $parsedOpt = 0
+            if ([int]::TryParse($optInput, [ref]$parsedOpt) -and $parsedOpt -ge 1 -and $parsedOpt -le 5) {
+                $selectedOption = $parsedOpt
+            } else {
+                Write-Host "  [INVALID OPSI] Please enter strictly 1, 2, 3, 4, or 5 (No Default Enter)." -ForegroundColor Red
+            }
+        }
+    }
+
+    $customScopeSummary = ""
+    $chosenCustomRelPath = ""
+    $chosenSubAction = 0
+    $candidateFiles = @()
+
+    if ($selectedOption -eq 5) {
+        $resolvedScope = $null
+        if (-not [string]::IsNullOrWhiteSpace($CustomPathParam)) {
+            $resolvedScope = Resolve-CustomScopeTarget -RepoPath $RepoPath -RawCustomPath $CustomPathParam -AllowCleanTrackedFiles $IsAllCommits
+            if (-not $resolvedScope.IsValid) {
+                throw "[ERROR] $($resolvedScope.ErrorMessage)"
+            }
+        } else {
+            Write-Host ""
+            Write-Host "  [ OPSI 5: CUSTOM PATH SCOPE ]" -ForegroundColor Cyan
+            Write-Host "    - Enter 'path/subfolder' for Folder Scope, or 'path/subfolder/file.md' for Exact Single-File Scope." -ForegroundColor DarkGray
+            Write-Host "    - Accepts repo-relative path, workspace-relative path (repo\sub\file.md), or full path from drive root." -ForegroundColor DarkGray
+            while (-not $resolvedScope) {
+                $rawCustom = Read-RequiredInput -PromptText "  >> Enter custom path (relative or full drive path, or 'q' to quit): "
+                if ($rawCustom -ieq "q" -or $rawCustom -ieq "quit") {
+                    return $null
+                }
+                $candScope = Resolve-CustomScopeTarget -RepoPath $RepoPath -RawCustomPath $rawCustom -AllowCleanTrackedFiles $IsAllCommits
+                if ($candScope.IsValid) {
+                    $resolvedScope = $candScope
+                } else {
+                    Write-Host "  [INVALID PATH] $($candScope.ErrorMessage)" -ForegroundColor Red
+                }
+            }
+        }
+
+        $chosenCustomRelPath = $resolvedScope.RelativeTarget
+        Write-Host "  [CUSTOM SCOPE] Type: $($resolvedScope.ScopeType) | Target: $($resolvedScope.RelativeTarget)" -ForegroundColor Green
+
+        if ($resolvedScope.HasNewFiles) {
+            Write-Host ""
+            Write-Host "  [SCOPED NEW FILE DETECTED] Found $($resolvedScope.NewFilesDetected.Count) new/untracked file(s) inside '$($resolvedScope.RelativeTarget)':" -ForegroundColor Yellow
+            foreach ($nf in $resolvedScope.NewFilesDetected) {
+                Write-Host "    [$($nf.StateCode)] $($nf.RelativePath)" -ForegroundColor DarkYellow
+            }
+            Write-Host ""
+            Write-Host "    [ 1 ] all           (include new + modified files in scope: $($resolvedScope.AllScopedFiles.Count) file(s))" -ForegroundColor Gray
+            Write-Host "    [ 2 ] modified only (M only, exclude new files: $($resolvedScope.ModifiedOnlyFiles.Count) file(s))" -ForegroundColor Gray
+            Write-Host "    [ 3 ] cancel        (abort operation)" -ForegroundColor Gray
+            Write-Host ""
+
+            $subChoice = 0
+            if ($CustomNewFileActionParam -ge 1 -and $CustomNewFileActionParam -le 3) {
+                $subChoice = $CustomNewFileActionParam
+            } else {
+                while ($subChoice -lt 1 -or $subChoice -gt 3) {
+                    $subInput = Read-RequiredInput -PromptText "  >> Select scoped state mode [1 / 2 / 3] (No Default Enter): "
+                    if ($subInput -ieq "q" -or $subInput -ieq "quit" -or $subInput -eq "3" -or $subInput -ieq "cancel") {
+                        return $null
+                    }
+                    $parsedSub = 0
+                    if ([int]::TryParse($subInput, [ref]$parsedSub) -and $parsedSub -in @(1, 2, 3)) {
+                        $subChoice = $parsedSub
+                    } else {
+                        Write-Host "  [INVALID CHOICE] Please enter strictly 1 (all), 2 (modified only), or 3 (cancel)." -ForegroundColor Red
+                    }
+                }
+            }
+
+            $chosenSubAction = $subChoice
+            if ($subChoice -eq 3) {
+                return $null
+            } elseif ($subChoice -eq 1) {
+                $candidateFiles = @($resolvedScope.AllScopedFiles)
+                $customScopeSummary = "$($resolvedScope.ScopeType): $($resolvedScope.RelativeTarget) | Sub-mode: 1. all"
+            } elseif ($subChoice -eq 2) {
+                $candidateFiles = @($resolvedScope.ModifiedOnlyFiles)
+                $customScopeSummary = "$($resolvedScope.ScopeType): $($resolvedScope.RelativeTarget) | Sub-mode: 2. modified only"
+            }
+        } else {
+            $candidateFiles = @($resolvedScope.AllScopedFiles)
+            $customScopeSummary = "$($resolvedScope.ScopeType): $($resolvedScope.RelativeTarget) (Modified only, 0 new files)"
+        }
+    } else {
+        $candidateFiles = switch ($selectedOption) {
+            1 { $opt1Files }
+            2 { $opt2Files }
+            3 { $opt3Files }
+            4 { $opt4Files }
+        }
+    }
+
+    return [PSCustomObject]@{
+        SelectedOption      = $selectedOption
+        CandidateFiles      = @($candidateFiles)
+        CustomScopeSummary  = $customScopeSummary
+        ChosenCustomRelPath = $chosenCustomRelPath
+        ChosenSubAction     = $chosenSubAction
+    }
+}
+
+function Confirm-CommitOverwriteOverview {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$RepoPath,
+
+        [Parameter(Mandatory = $true)]
+        [string]$ActiveBranch,
+
+        [Parameter(Mandatory = $true)]
+        [PSCustomObject]$TargetCommit,
+
+        [Parameter(Mandatory = $true)]
+        [PSCustomObject]$OptionSelection,
+
+        [Parameter(Mandatory = $true)]
+        [string]$OptionsJsonPath,
+
+        [switch]$AutoConfirm
+    )
+
+    $selectedOption = $OptionSelection.SelectedOption
+    $candidateFiles = @($OptionSelection.CandidateFiles)
+    $customScopeSummary = $OptionSelection.CustomScopeSummary
+
+    $strategyText = if ($TargetCommit.IsAllCommits) {
+        "All-Commit-State Index Filter (git filter-branch --index-filter across all $($TargetCommit.TotalCommits) commit(s))"
+    } elseif ($TargetCommit.IsHead) {
+        "Fast-Path HEAD Amend (git commit --amend --no-edit + original CommitDate)"
+    } else {
+        "Historical Fixup + Non-Interactive Autosquash Rebase (--committer-date-is-author-date)"
+    }
+
+    $remoteWarning = if ($TargetCommit.IsPushedRemote) {
+        "PUSHED TO REMOTE ($($TargetCommit.RemoteBranches -join ', ')) -> Will require 'git push --force-with-lease'"
+    } else {
+        "Local Commit Only (Not yet pushed to remote)"
+    }
+
+    Write-Host ""
+    Write-Host "================================================================================" -ForegroundColor Cyan
+    Write-Host "              COMMITTED FILE OVERWRITE - PRE-FLIGHT BRIEFED OVERVIEW            " -ForegroundColor Yellow
+    Write-Host "================================================================================" -ForegroundColor Cyan
+    Write-Host "  Repository Path   : $RepoPath" -ForegroundColor White
+    Write-Host "  Active Branch     : $ActiveBranch" -ForegroundColor White
+    Write-Host "  Target Commit ID  : $($TargetCommit.ShortHash) ($($TargetCommit.FullHash))" -ForegroundColor Green
+    Write-Host "  Commit Subject    : `"$($TargetCommit.Subject)`" ($($TargetCommit.DateShort))" -ForegroundColor Gray
+    Write-Host "  Selected Opsi     : $(Get-OptionDescription -Option $selectedOption -CustomScopeSummary $customScopeSummary -IsAllCommits ([bool]$TargetCommit.IsAllCommits))" -ForegroundColor Cyan
+    Write-Host "  Rewrite Strategy  : $strategyText" -ForegroundColor Gray
+    Write-Host "  Commit Timestamp  : Preserve Original CommitDate ($($TargetCommit.CommitDateIso))" -ForegroundColor Gray
+    Write-Host "  Remote Status     : $remoteWarning" -ForegroundColor $(if ($TargetCommit.IsPushedRemote) { "Yellow" } else { "Green" })
+    Write-Host "  Options JSON      : $OptionsJsonPath" -ForegroundColor DarkGray
+    Write-Host "--------------------------------------------------------------------------------" -ForegroundColor DarkGray
+    Write-Host "  Files To Overwrite ($($candidateFiles.Count)):" -ForegroundColor White
+    foreach ($cf in $candidateFiles) {
+        Write-Host ("    [{0,-2}] {1} ({2})" -f $cf.StateCode, $cf.RelativePath, $cf.ScopeSource) -ForegroundColor Gray
+    }
+    Write-Host "================================================================================" -ForegroundColor Cyan
+    Write-Host ""
+
+    if ($AutoConfirm) {
+        return $true
+    }
+
+    while ($true) {
+        $confirmInput = Read-RequiredInput -PromptText "  >> Confirm commit file overwrite? Type 'yes' to proceed or 'no' to abort (No Default Enter): "
+        if ($confirmInput -ceq "yes" -or $confirmInput -ieq "yes") {
+            return $true
+        }
+        if ($confirmInput -ieq "no" -or $confirmInput -ieq "n" -or $confirmInput -ieq "q" -or $confirmInput -ieq "abort") {
+            return $false
+        }
+        Write-Host "  [INVALID CONFIRMATION] Type strictly 'yes' to execute or 'no' to cancel." -ForegroundColor Red
+    }
+}
+
 Export-ModuleMember -Function @(
     'Invoke-GitRepoCommand',
     'Test-GitRepository',
     'Get-DiscoveredGitRepositories',
+    'Get-RepoTotalCommitCount',
     'Get-RepoRecentCommits',
     'Resolve-TargetCommit',
     'Get-OptionDescription',
@@ -733,5 +1356,10 @@ Export-ModuleMember -Function @(
     'Invoke-CommitFileOverwrite',
     'Get-CommitOverwriteOptionsJsonPath',
     'Import-CommitOverwriteOptions',
-    'Save-CommitOverwriteOptions'
+    'Save-CommitOverwriteOptions',
+    'Read-RequiredInput',
+    'Select-TargetRepositoryInteractive',
+    'Select-TargetCommitInteractive',
+    'Select-OverwriteOptionInteractive',
+    'Confirm-CommitOverwriteOverview'
 )

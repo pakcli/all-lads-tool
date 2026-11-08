@@ -52,14 +52,15 @@ cons:
 
 ## 2. Interactive Prompt Sequence (No Default Enter)
 
-1. **`repo`**:
-   - Lists discovered workspace Git repositories `[1..N]` or accepts a full directory path.
+1. **Step 1 — `target repo`**:
+   - Lists discovered workspace Git repositories `[1..20]` by default (typing `more` loads `+20` more) or accepts a full directory path.
    - Rejects empty `Enter`.
-2. **`commit id`**:
-   - Lists the last `15` commits (`[1..15] <ShortHash> | <Date> | <Subject>`) and marks `(HEAD)`.
-   - Accepts either a list index (`1..15`) or any valid commit SHA / ref.
+2. **Step 2 — `commit id` / `more` / `L` / `all`**:
+   - Lists the first `20` commits (`[1..20] <ShortHash> | <Date> | <Subject>`) by default and marks `(HEAD)`.
+   - Typing `more` loads the next `+20` commits (`21..40`, `41..60`, etc.) incrementally.
+   - Accepts a list index (`1..N`), any valid commit SHA / ref, OR `L` / `all` (`All Commit State` across all commits in branch history via `git hash-object -w` + `git filter-branch -f --index-filter`).
    - Rejects empty `Enter`.
-3. **`opsi` (`1`, `2`, `3`, `4`, `5`)**:
+3. **Step 3 — `opsi` (`1`, `2`, `3`, `4`, `5`)**:
    - Displays Options `1..4` with live matching file counts, plus Option `5` (`Custom path`).
    - If Option `5` is chosen:
      - Prompts for custom path (relative or drive root):

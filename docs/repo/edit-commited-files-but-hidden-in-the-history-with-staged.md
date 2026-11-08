@@ -18,10 +18,11 @@ dependencies:
 > [!IMPORTANT]
 > **Context**: `repo` | **Executable**: `script/repo/edit-commited-files-but-hidden-in-the-history-with-staged.ps1`  
 > **Adapter**: `script/repo/adapter/edit-commited-files-but-hidden-in-the-history-with-staged.psm1`  
+> **State JSON**: `script/repo/adapter/edit-commited-files-but-hidden-in-the-history-with-staged.json`  
 > **Canonical Documentation**: `docs/repo/edit-commited-files-but-hidden-in-the-history-with-staged.md` (1:1 Script-to-Docs Parity)  
-> **Brief**: `[[brief/v01-03-04_repo-edit-commited-files-but-hidden-in-the-history-with-staged.md|v01-03-04]]`
+> **Briefs**: `[[brief/v01-03-04_repo-edit-commited-files-but-hidden-in-the-history-with-staged.md|v01-03-04]]`, `[[brief/v01-03-05_repo-edit-commited-files-all-commit-state.md|v01-03-05]]`
 
-Replaces files inside an already-committed Git commit (`HEAD` or any historical commit `<commit-sha>`) with current staged, working-tree, or custom-scoped changes **without adding extra "fixup" or "oops" commits in `git log`**, while preserving the original commit timestamp (`CommitDate`) and enforcing a strict **No-Default-Enter** interactive contract.
+Replaces files inside an already-committed Git commit (`HEAD`, any historical commit `<commit-sha>`, or **`L` / `all` = All Commit State across all commits in history**) with current staged, working-tree, or custom-scoped changes **without adding extra "fixup" or "oops" commits in `git log`**, while preserving the original commit timestamp (`CommitDate`) and enforcing a strict **No-Default-Enter** interactive contract.
 
 ---
 
@@ -36,6 +37,7 @@ param(
     [int]$Option = 0,
     [string]$CustomPath = "",
     [int]$CustomNewFileAction = 0,
+    [int]$PageSize = 20,
     [switch]$Yes
 )
 ```
@@ -43,24 +45,30 @@ param(
 | Parameter | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
 | `-Repo` | `string` | `""` | Optional target Git repository path. When omitted, Step 1 prompts interactively (No Default Enter). |
-| `-CommitId` | `string` | `""` | Optional target commit SHA, `HEAD`, or 1-based commit index. When omitted, Step 2 prompts interactively (No Default Enter). |
+| `-CommitId` | `string` | `""` | Optional target commit SHA, `HEAD`, 1-based commit index, or **`L` / `all` (All Commit State)**. When omitted, Step 2 prompts interactively (No Default Enter). |
 | `-Option` | `int` | `0` | Optional overwrite mode (`1`, `2`, `3`, `4`, or `5`). When `0` or omitted, Step 3 prompts interactively (No Default Enter). |
 | `-CustomPath` | `string` | `""` | Optional custom path (relative to repo or full path from drive root) when `-Option 5` is used. |
 | `-CustomNewFileAction` | `int` | `0` | Optional sub-choice (`1` = `all`, `2` = `modified only`, `3` = `cancel`) when new/untracked files are detected in `-Option 5`. |
+| `-PageSize` | `int` | `20` | Default batch size (`1..20`) for repository and commit history listing; typing `more` loads `+20` additional items per request. |
 | `-Yes` | `switch` | `$false` | Optional non-interactive confirmation bypass for scripted automation. When omitted, Step 4 requires typing `yes` explicitly. |
 
 ---
 
-## 2. The 5 File Overwrite Options (`Opsi 1..5`)
+## 2. Step 2 Target Commit Scope (`commit id / more / L / all`) & Step 3 The 5 Opsi (`1..5`)
 
-When prompted for `opsi`, the operator must explicitly select `1`, `2`, `3`, `4`, or `5` (empty `Enter` is rejected):
+### Step 2: `commit id / more / L / all`
+- **Default `1..20` Commit Pagination + `more` (`+20`)**: Displays commits `[1..20]` by default. Typing `more` loads the next `+20` commits (`21..40`, then `41..60`, etc.) until all commits in branch history are loaded.
+- **Single Commit (`SHA` / `HEAD` / `[1..N]`)**: Targets that specific commit (`HEAD` via `--amend --no-edit`, or historical commit via `--fixup` + `--autosquash`).
+- **All Commit State (`L` or `all`)**: Targets **all commits in the branch history**, replacing the files selected in Step 3 (`Opsi 1..5`) across every commit in history (`git hash-object -w` + `git filter-branch -f --index-filter`).
+
+### Step 3: The 5 File Overwrite Options (`Opsi 1..5`)
 
 | Opsi | Scope Source | File State Filter | Exact Git Resolution & Overwrite Behavior |
 | :--- | :--- | :--- | :--- |
-| **`1`** | **Staged Files Only** (`Index`) | **`modified` (`M` only)** | Queries `git diff --cached --name-status` and filters strictly to `M` (Modified existing files). Temporarily isolates any non-`M` staged files (`A`/`D`/`R`), overwrites only the staged `M` files into `<commit id>`, and re-stages the excluded files afterward. |
-| **`2`** | **Staged Files Only** (`Index`) | **`all` (`M`, `A`, `D`, `R`, `C`)** | Queries `git diff --cached --name-status` across all staged states and overwrites the entire staged index into `<commit id>`, leaving unstaged working-tree edits untouched. |
-| **`3`** | **All Files** (`Staged + Working Tree`) | **`modified` (`M` only)** | Queries both `git diff --cached --name-status` and `git diff --name-status` for tracked `M` (Modified) files, stages only those `M` files, and overwrites them into `<commit id>`. Untracked (`??`), added (`A`), and deleted (`D`) files remain untouched. |
-| **`4`** | **All Files** (`Staged + Working Tree`) | **`all` (`M`, `A`, `D`, `R`, `??`)** | Stages all tracked and untracked files (`git add -A`) and absorbs the entire repository state into `<commit id>`. |
+| **`1`** | **Staged Files Only** (`Index`) | **`modified` (`M` only)** | Queries `git diff --cached --name-status` and filters strictly to `M` (Modified existing files). Temporarily isolates any non-`M` staged files (`A`/`D`/`R`), overwrites only the staged `M` files into target commit(s), and re-stages the excluded files afterward. |
+| **`2`** | **Staged Files Only** (`Index`) | **`all` (`M`, `A`, `D`, `R`, `C`)** | Queries `git diff --cached --name-status` across all staged states and overwrites the entire staged index into target commit(s), leaving unstaged working-tree edits untouched. |
+| **`3`** | **All Files** (`Staged + Working Tree`) | **`modified` (`M` only)** | Queries both `git diff --cached --name-status` and `git diff --name-status` for tracked `M` (Modified) files, stages only those `M` files, and overwrites them into target commit(s). Untracked (`??`), added (`A`), and deleted (`D`) files remain untouched. |
+| **`4`** | **All Files** (`Staged + Working Tree`) | **`all` (`M`, `A`, `D`, `R`, `??`)** | Stages all tracked and untracked files (`git add -A`) and absorbs the entire repository state into target commit(s). |
 | **`5`** | **Custom Path** (`Relative` or `Drive Root`) | **Folder Scope (`path/subfolder`) or Exact File (`path/subfolder/file.md`)** | Accepts either a repo-relative path or full path from the drive root. If the path is a directory (`path/subfolder`), scopes to that folder; if the path is a file (`path/subfolder/file.md`), scopes strictly to that single file. If any new file (`??` or `A`) is detected inside the scope, prompts: **`1. all`**, **`2. modified only`**, or **`3. cancel`**. |
 
 ---

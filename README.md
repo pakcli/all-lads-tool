@@ -93,14 +93,27 @@ all-lads-tool
 		v01-02_foldering-structure.md
 		v01-03_foldering-structure.md
 		v01-03-02_foldering-structure-updated-stricly-no-markdown-in-script-and-docs-file-name-per-script.md
+		v01-03-03_UNLOCKING-FILE-SCRIPT-FINALY-WORKING.md
+		v01-03-04_repo-edit-commited-files-but-hidden-in-the-history-with-staged.md
+		v01-03-05_repo-edit-commited-files-all-commit-state.md
 	docs
 		repo
-			git-manage.md          <--- 1:1 match for script/repo/git-manage.ps1
-			git-branch-rename.md   <--- 1:1 match for script/repo/git-branch-rename.ps1
+			edit-commited-files-but-hidden-in-the-history-with-staged.md <--- 1:1 match for script/repo/edit-commited-files-but-hidden-in-the-history-with-staged.ps1
+			git-all-state-renamer-prefix-v.md                            <--- 1:1 match for script/repo/git-all-state-renamer-prefix-v.ps1
+			git-branch-rename.md                                         <--- 1:1 match for script/repo/git-branch-rename.ps1
+			git-diff-commits.md                                          <--- 1:1 match for script/repo/git-diff-commits.ps1
+			git-manage.md                                                <--- 1:1 match for script/repo/git-manage.ps1
+			git-manage.sh.md                                             <--- 1:1 match for script/repo/git-manage.sh
+			git-reconfig-identity.md                                     <--- 1:1 match for script/repo/git-reconfig-identity.ps1
+			git-recover.md                                               <--- 1:1 match for script/repo/git-recover.ps1
+			git-rename-commit.md                                         <--- 1:1 match for script/repo/git-rename-commit.ps1
+			git-submodule.md                                             <--- 1:1 match for script/repo/git-submodule.ps1
+			git-sync-from-dir.md                                         <--- 1:1 match for script/repo/git-sync-from-dir.ps1
 		file
 			batch-target-dir-rename.md
 			csv-to-frontmatter.md
 			detector-clipboard-4-mode.md <--- 1:1 match for script/file/detector-clipboard-4-mode.ps1
+			detector-file-lock-process.md <--- 1:1 match for script/file/detector-file-lock-process.ps1
 			dry-run.md
 			file-merge-into-one.md
 			file-one-to-multiple-files.md
@@ -112,15 +125,40 @@ all-lads-tool
 			build-bundles.md
 	script
 		repo
-			git-manage.ps1         <--- Executable
-			git-branch-rename.ps1  <--- Executable
+			edit-commited-files-but-hidden-in-the-history-with-staged.ps1 <--- Historical Commit File Overwrite
+			git-all-state-renamer-prefix-v.ps1                            <--- Batch Prefix Renamer
+			git-branch-rename.ps1                                         <--- Branch Renamer
+			git-diff-commits.ps1                                          <--- Commit Diff & Size Analyzer
+			git-manage.ps1                                                <--- Universal Git Manager (PowerShell)
+			git-manage.sh                                                 <--- Universal Git Manager (Git Bash)
+			git-reconfig-identity.ps1                                     <--- Repo Local Identity Aligner
+			git-recover.ps1                                               <--- Reflog Discovery & Recovery
+			git-rename-commit.ps1                                         <--- Commit Message Renamer
+			git-submodule.ps1                                             <--- Submodule Manager
+			git-sync-from-dir.ps1                                         <--- Non-destructive Robocopy Sync
 			adapter
-				v02-30-00.psm1     <--- LTS Version Adapter
-				v02-40-00.psm1     <--- Modern Version Adapter
+				edit-commited-files-but-hidden-in-the-history-with-staged.json <--- Persisted Options & History
+				edit-commited-files-but-hidden-in-the-history-with-staged.psm1 <--- Rewrite & State Adapter
+				git-commitrenamer.psm1                                        <--- Commit Rewriter Plumbing Engine
+				git-core.psm1                                                 <--- Process Execution Wrapper
+				git-core.sh                                                   <--- POSIX Git CLI Wrapper
+				git-diffengine.psm1                                           <--- Sandbox Compile & Diff Engine
+				git-identity.psm1                                             <--- Remote Owner & Identity Engine
+				git-reflog.psm1                                               <--- Reflog Parser & Restore Engine
+				git-reflog.sh                                                 <--- POSIX Reflog Recovery Engine
+				git-status.psm1                                               <--- Status Summary Engine
+				git-status.sh                                                 <--- POSIX Git Status Inspector
+				git-submodule.psm1                                            <--- Submodule Plumbing Engine
+				git-submodule.sh                                              <--- POSIX Submodule Engine
+				history.psm1                                                  <--- JSON History Tracker
+				history.sh                                                    <--- POSIX State Logger
+				v02-30-00.psm1                                                <--- LTS Version Adapter
+				v02-40-00.psm1                                                <--- Modern Version Adapter
 		file
 			csv-to-frontmatter.ps1
 			detector-clipboard-4-mode.ps1  <--- Executable (4-Mode Clipboard & Git Protocol Suite)
 			detector-clipboard-4-mode.json <--- Atomic persistence store
+			detector-file-lock-process.ps1 <--- Executable (File Lock Inspector & Unlocker)
 			dry-run.ps1
 			batch-target-dir-rename.ps1
 			file-merge-into-one.ps1
@@ -150,9 +188,9 @@ all-lads-tool
 ### 🏛️ Ringkasan 5 Domain Contexts:
 1. **`blender/` (3D & Modeling Pipeline)**: Otomasi mesh cleaning, FBX/glTF batch export, dan material baking via Blender Python API.
 2. **`unity/` (Game Engine & Editor Tools)**: C# Editor utilities, asset post-processors, meta-file cleaners, dan build triggers.
-3. **`repo/` (Git & Repository Orchestration)**: Universal Git Manager (`git-manage.ps1`) dilengkapi Git Clone Wizard interaktif (HTTPS, SSH, GitHub CLI, owner/repo slug) dengan pre-flight briefed overview card, auto-detection URL clipboard, dan konfirmasi eksplisit `[y/N]`; branch renamer; submodule orchestrator; dan reflog recovery.
+3. **`repo/` (Git & Repository Orchestration)**: Universal Git Manager (`git-manage.ps1` PowerShell & `git-manage.sh` Git Bash) dilengkapi Git Clone Wizard interaktif (HTTPS, SSH, GitHub CLI, owner/repo slug) dengan pre-flight briefed overview card dan konfirmasi eksplisit `[y/N]`; Historical Commit File Overwrite Engine (`edit-commited-files-but-hidden-in-the-history-with-staged.ps1`) dengan 3-Step No-Default-Enter architecture (Step 1 repo `1..20` + `more`, Step 2 `commit id / more / L / all` [All Commit State], Step 3 5 Opsi `1..5` dengan folder/file custom scope & new-file gate); Branch Renamer (`git-branch-rename.ps1`); Batch Prefix Renamer (`git-all-state-renamer-prefix-v.ps1`); Commit Diff & Sandbox Size Analyzer (`git-diff-commits.ps1`); Remote Owner Identity Reconfig (`git-reconfig-identity.ps1`); Reflog Commit Recovery (`git-recover.ps1`); Historical Commit Message Renamer (`git-rename-commit.ps1`); Submodule Hub (`git-submodule.ps1`); dan Non-destructive Robocopy Sync (`git-sync-from-dir.ps1`).
 4. **`website/` (Web Architecture & Frontend)**: Bundling ES module, SCSS/CSS compiler, DOM accessibility validator, dan Playwright snapshot engine.
-5. **`file/` (File & Data Transformation)**: Universal 4-Mode Clipboard Suite (`PolyClip` / `detector-clipboard-4-mode.ps1`) dengan Unified 5-Column Architecture, Git Multi-Protocol Widget (`[ HTTPS | SSH | GitHub CLI ]`), integrasi native clipboard VS Code Explorer (`text/uri-list`, `FileNameW`), Bidirectional CSV $\leftrightarrow$ YAML Frontmatter bridge, pemecah/penggabung file (`file-merge` / `file-split`), dan PowerShell dry-run simulation engine.
+5. **`file/` (File & Data Transformation)**: Universal 4-Mode Clipboard Suite (`PolyClip` / `detector-clipboard-4-mode.ps1`) dengan Unified 5-Column Architecture, Git Multi-Protocol Widget (`[ HTTPS | SSH | GitHub CLI ]`), integrasi native clipboard VS Code Explorer (`text/uri-list`, `FileNameW`), File Lock Inspector & Unlocker (`detector-file-lock-process.ps1`) dengan split action `[Only Instance]` vs `[Unlock All]`, Bidirectional CSV $\leftrightarrow$ YAML Frontmatter bridge, pemecah/penggabung file (`file-merge` / `file-split`), dan PowerShell dry-run simulation engine.
 
 ---
 
@@ -181,6 +219,12 @@ all-lads-tool
 
    # Jalankan Win+V Background Override Daemon (0% CPU Event-Driven)
    .\script\file\adapter\daemon-override-win-v.ps1
+
+   # Jalankan File Lock Inspector & Unlocker (Cari proses & lepaskan lock)
+   .\script\file\detector-file-lock-process.ps1
+
+   # Jalankan Historical Commit File Overwrite Engine (No Default Enter)
+   .\script\repo\edit-commited-files-but-hidden-in-the-history-with-staged.ps1
 
    # Jalankan tool konversi CSV ke Frontmatter
    .\script\file\csv-to-frontmatter.ps1 -TargetDir "vault/notes" -TargetCsv "data.csv"

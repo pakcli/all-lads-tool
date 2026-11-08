@@ -158,6 +158,17 @@ Fokus pada konversi data, sanitasi format, manipulasi teks aman, dan manajemen c
   ```powershell
   .\script\file\csv-to-frontmatter.ps1 -TargetDir "output/notes" -TargetCsv "input.csv"
   ```
+- **`detector-file-lock-process.ps1` (File Lock Inspector & Unlocker)**:
+  Mendeteksi dan melepaskan file atau folder yang sedang terkunci oleh proses lain di Windows (mengatasi error `The process cannot access the file because it is being used by another process`):
+  ```powershell
+  # Buka antarmuka interaktif File Lock Inspector
+  .\script\file\detector-file-lock-process.ps1
+  ```
+  **Fitur Utama**:
+  1. **Dual Engine Inspection**: Menggunakan Windows Restart Manager API (`RmRegisterResources`, `RmGetList`) dan Win32 Handle Search Engine untuk mendeteksi PID, nama proses, dan path file terkunci.
+  2. **Split Release Action**:
+     - **`[Only Instance]`**: Melepaskan handle hanya untuk instance `ProcessId` yang dipilih pada baris tersebut.
+     - **`[Unlock All]`**: Melepaskan seluruh handle dari semua proses yang menahan path target sekaligus dan menyinkronkan status baris terkait menjadi hijau (*Unlocked*).
 - **`dry-run.ps1`**:
   Runner simulasi untuk menguji skrip PowerShell sebelum melakukan perubahan permanen pada file.
 
@@ -181,8 +192,80 @@ Fokus pada version control, keamanan riwayat git, dan otomasi branching.
   2. **Multi-Version Adapter**:
      - Memilih adapter otomatis berdasarkan versi Git terinstal (`adapter/v02-30-00.psm1` untuk Git 2.30+ atau `adapter/v02-40-00.psm1` untuk Git 2.40+).
 
+- **`edit-commited-files-but-hidden-in-the-history-with-staged.ps1` (Historical Commit File Overwrite)**:
+  Mengganti atau menyerap perubahan file (staged atau working tree) langsung ke dalam commit tertentu di masa lalu (`HEAD` atau commit SHA historis) maupun ke **seluruh commit di sepanjang histori branch** (`All Commit State`) tanpa meninggalkan node commit sampah (*fixup/typo commits*) di `git log`.
+  ```powershell
+  # Menjalankan menu interaktif dengan 3-Step Architecture
+  .\script\repo\edit-commited-files-but-hidden-in-the-history-with-staged.ps1
+
+  # Eksekusi non-interaktif terarah (CI/CD atau scripting)
+  .\script\repo\edit-commited-files-but-hidden-in-the-history-with-staged.ps1 -Repo "E:\proj\my-repo" -CommitId "e52f506" -Option 1 -Yes
+  ```
+  **Alur Interaktif 3-Step (`Strict No-Default-Enter`)**:
+  1. **Step 1: Target Repo**: Menampilkan `[1..20]` repositori Git yang terdeteksi di workspace (ketik `more` untuk `+20` berikutnya) atau menerima full path direktori.
+  2. **Step 2: Commit ID / `more` / `L` / `all`**:
+     - Menampilkan commit `[1..20]` (ketik `more` untuk melihat `+20` commit lebih lawas).
+     - Menerima nomor indeks `[1..N]`, commit SHA spesifik, atau `HEAD` (untuk overwrite pada commit tunggal).
+     - Menerima **`L`** atau **`all`** untuk **All Commit State** (mengganti file di **seluruh commit** dalam histori branch menggunakan `git hash-object -w` + `git filter-branch -f --index-filter`).
+  3. **Step 3: 5 File Overwrite Opsi (`1..5`)**:
+     - `[ 1 ]`: Overwrite staged files | state: `modified` (`M` saja, file staged `A`/`D` diisolasi).
+     - `[ 2 ]`: Overwrite staged files | state: `all` (seluruh file staged `M`, `A`, `D`, `R`, `C`).
+     - `[ 3 ]`: Overwrite all files (staged + working tree) | state: `modified` (hanya tracked `M`).
+     - `[ 4 ]`: Overwrite all files (staged + working tree) | state: `all` (seluruh perubahan termasuk untracked `??`).
+     - `[ 5 ]`: Custom path (menerima Full Drive Path `E:\...`, Repo-Relative Path `brief\...`, atau path dengan prefix repo `repo\brief\...`). Otomatis mendeteksi Folder Scope vs. Exact Single-File Scope. Jika mendeteksi file baru (`??`/`A`), memunculkan sub-prompt: `1. all`, `2. modified only`, atau `3. cancel`.
+  4. **Step 4: Pre-Flight Briefed Overview**: Menampilkan kartu ringkasan lengkap dan mewajibkan konfirmasi eksplisit `yes` sebelum history diubah.
+  5. **Safety Rollback & State Persistence**: Menyimpan rollback ref `refs/backup/commit-overwrite-<timestamp>` dan mencatat konfigurasi ke `script/repo/adapter/edit-commited-files-but-hidden-in-the-history-with-staged.json` (mengikuti `save-option-as-exact-executor-name-json`).
+
 - **`git-branch-rename.ps1`**:
   Otomasi penggantian nama branch mengikuti standar penamaan datar `language-firstname-secondname`.
+
+- **`git-manage.sh` (Universal Git Manager - Git Bash Edition)**:
+  Terminal cockpit interaktif untuk Git Bash dan POSIX environments (terhubung ke `script/repo/adapter/*.sh`).
+  ```bash
+  bash script/repo/git-manage.sh [target_directory]
+  ```
+
+- **`git-all-state-renamer-prefix-v.ps1` (Git All-State Prefix Renamer)**:
+  Batch renamer berbasis `git mv` untuk mengubah nama file (misal `brief-*.md`) menjadi format 2-octet versioned (`v01-01_<name>.md`) tanpa merusak commit lineage.
+  ```powershell
+  .\script\repo\git-all-state-renamer-prefix-v.ps1 -TargetDir "brief" -Filter "brief-*.md" -DryRun
+  ```
+
+- **`git-diff-commits.ps1` (Commit Difference & Sandbox Size Analyzer)**:
+  Menganalisis delta ukuran kode sumber dan hasil kompilasi antar-commit secara aman dalam temp sandbox.
+  ```powershell
+  .\script\repo\git-diff-commits.ps1 -Compare "0,1" -Mode "both"
+  ```
+
+- **`git-reconfig-identity.ps1` (Git Identity Reconfig)**:
+  Membaca remote URL (GitHub/GitLab), mengekstrak username owner, dan menyesuaikan konfigurasi repo-local `user.name` dan `user.email`.
+  ```powershell
+  .\script\repo\git-reconfig-identity.ps1 -DryRun
+  ```
+
+- **`git-recover.ps1` (Git Lost & Detached Commit Recovery)**:
+  Memindai `git reflog` untuk commit yang hilang/detached, memungkinkan inspeksi, detached checkout, pembuatan branch baru, atau pemulihan file selektif ke working tree.
+  ```powershell
+  .\script\repo\git-recover.ps1
+  ```
+
+- **`git-rename-commit.ps1` (Git Commit Renamer)**:
+  Mengganti pesan commit HEAD maupun commit historis menggunakan Git plumbing (`commit-tree` & `update-ref`), dilengkapi opsi push `--force-with-lease` ke remote GitHub/GitLab.
+  ```powershell
+  .\script\repo\git-rename-commit.ps1 -CommitHash "HEAD" -NewMessage "feat: new clean message"
+  ```
+
+- **`git-submodule.ps1` (Git Submodule Manager)**:
+  Manajer submodule interaktif untuk menambah (URL parsing otomatis), memperbarui, menyinkronkan, atau menghapus submodule secara bersih (deinit + git rm + modules cache purge).
+  ```powershell
+  .\script\repo\git-submodule.ps1
+  ```
+
+- **`git-sync-from-dir.ps1` (Git Sync From Directory)**:
+  Menyalin file dari direktori sumber ke repositori target menggunakan Robocopy dengan isolasi total folder `.git` (riwayat commit dan remote target tidak pernah tersentuh).
+  ```powershell
+  .\script\repo\git-sync-from-dir.ps1 -TargetRepo "E:\proj\repoA" -SourceDir "E:\backup\code"
+  ```
 
 ### Context: Website (`script/website/`)
 Fokus pada client bundling, stylesheet compiler, inspeksi DOM, dan UI webview.
@@ -256,3 +339,13 @@ Terjadi jika timer live-watcher (`liveTimer`) salah mendeteksi clipboard write i
 ### 5. Stringifikasi Objek PowerShell pada Kolom Teks
 Jika teks yang disalin mengandung dump objek PowerShell (`[string]@{Id=...}`):
 - Engine otomatis mengeksekusi `Clean-PlainText` dan `Unwrap-Mode1Text` untuk membuang bungkus serialisasi dan tanda kutip, sehingga cell `CONTENT` selalu menampilkan teks asli secara bersih.
+
+### 6. Opsi 5 Custom Path Tertolak / 0 File Terdeteksi pada Tab Completion
+Terjadi saat pengembang melakukan tab-completion path dari folder induk workspace (misal di `E:\proj>` mengetik `web-app_...\brief\file.md`):
+- **Penyebab**: Path yang dimasukkan membawa nama folder repositori sebagai prefix, menyebabkan pathspec dobel.
+- **Solusi**: Adapter `Resolve-CustomScopeTarget` secara otomatis mendeteksi dan memotong nama folder repo, serta mendukung Full Drive Path (`E:\...`), Repo-Relative Path (`brief\...`), maupun CWD-Relative Path dengan aman.
+
+### 7. PowerShell 5.1 Parser Error pada Karakter Tipografi Non-ASCII
+Terjadi di Windows PowerShell 5.1 jika file skrip atau adapter `.psm1` mengandung karakter UTF-8 khusus seperti em-dash (`—` / `0xE2 0x80 0x94`):
+- **Penyebab**: PowerShell 5.1 tanpa UTF-8 BOM membaca byte penutup `0x94` sebagai quote penutup `”`, memicu parser error berantai (`UnexpectedToken`, `IncompleteHashLiteral`).
+- **Solusi**: Seluruh modul PowerShell dijamin 100% menggunakan pure ASCII hyphen (`-`) dan string ASCII aman.
