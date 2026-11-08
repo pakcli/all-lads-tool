@@ -7,7 +7,7 @@ aliases: [git-branch-rename, branch-renamer]
 tags: [all-lads-tool, repo, git, branch, adapter]
 ---
 
-# `git-branch-rename.ps1` — Git Branch Renamer (Context: Repo)
+# `git-branch-rename.ps1` - Git Branch Renamer (Context: Repo)
 
 > [!INFO]
 > **Context**: `repo` | **Directory**: `all-lads-tool/script/repo/`

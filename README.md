@@ -96,11 +96,14 @@ all-lads-tool
 		v01-03-03_UNLOCKING-FILE-SCRIPT-FINALY-WORKING.md
 		v01-03-04_repo-edit-commited-files-but-hidden-in-the-history-with-staged.md
 		v01-03-05_repo-edit-commited-files-all-commit-state.md
+		v01-04-00_universal-common-compiler-and-decompiler-architecture.md
 	docs
 		repo
 			edit-commited-files-but-hidden-in-the-history-with-staged.md <--- 1:1 match for script/repo/edit-commited-files-but-hidden-in-the-history-with-staged.ps1
 			git-all-state-renamer-prefix-v.md                            <--- 1:1 match for script/repo/git-all-state-renamer-prefix-v.ps1
 			git-branch-rename.md                                         <--- 1:1 match for script/repo/git-branch-rename.ps1
+			git-checkpoint-rollback.md                                   <--- 1:1 match for script/repo/git-checkpoint-rollback.ps1
+			git-checkpoint-rollback.sh.md                                <--- 1:1 match for script/repo/git-checkpoint-rollback.sh
 			git-diff-commits.md                                          <--- 1:1 match for script/repo/git-diff-commits.ps1
 			git-manage.md                                                <--- 1:1 match for script/repo/git-manage.ps1
 			git-manage.sh.md                                             <--- 1:1 match for script/repo/git-manage.sh
@@ -109,6 +112,9 @@ all-lads-tool
 			git-rename-commit.md                                         <--- 1:1 match for script/repo/git-rename-commit.ps1
 			git-submodule.md                                             <--- 1:1 match for script/repo/git-submodule.ps1
 			git-sync-from-dir.md                                         <--- 1:1 match for script/repo/git-sync-from-dir.ps1
+		common
+			compiler.md                                                  <--- 1:1 match for script/common/compiler.ps1
+			decompiler.md                                                <--- 1:1 match for script/common/decompiler.ps1
 		file
 			batch-target-dir-rename.md
 			csv-to-frontmatter.md
@@ -128,6 +134,8 @@ all-lads-tool
 			edit-commited-files-but-hidden-in-the-history-with-staged.ps1 <--- Historical Commit File Overwrite
 			git-all-state-renamer-prefix-v.ps1                            <--- Batch Prefix Renamer
 			git-branch-rename.ps1                                         <--- Branch Renamer
+			git-checkpoint-rollback.ps1                                   <--- Safe History Rewind (git reset --soft)
+			git-checkpoint-rollback.sh                                    <--- Git Bash Safe History Rewind
 			git-diff-commits.ps1                                          <--- Commit Diff & Size Analyzer
 			git-manage.ps1                                                <--- Universal Git Manager (PowerShell)
 			git-manage.sh                                                 <--- Universal Git Manager (Git Bash)
@@ -146,14 +154,22 @@ all-lads-tool
 				git-identity.psm1                                             <--- Remote Owner & Identity Engine
 				git-reflog.psm1                                               <--- Reflog Parser & Restore Engine
 				git-reflog.sh                                                 <--- POSIX Reflog Recovery Engine
+				git-rollback.psm1                                             <--- Soft Rollback Engine (Reset & Lease Push)
+				git-rollback.sh                                               <--- POSIX Soft Rollback Engine
 				git-status.psm1                                               <--- Status Summary Engine
 				git-status.sh                                                 <--- POSIX Git Status Inspector
 				git-submodule.psm1                                            <--- Submodule Plumbing Engine
 				git-submodule.sh                                              <--- POSIX Submodule Engine
+				git-worktree.psm1                                             <--- Worktree Management Engine
 				history.psm1                                                  <--- JSON History Tracker
 				history.sh                                                    <--- POSIX State Logger
-				v02-30-00.psm1                                                <--- LTS Version Adapter
-				v02-40-00.psm1                                                <--- Modern Version Adapter
+		common
+			compiler.ps1                                                 <--- Standalone Compiler & Bundler
+			decompiler.ps1                                               <--- Standalone Unbundler & Slicer
+			adapter
+				path-normalizer.psm1                                         <--- Universal Drag-and-Drop Sanitizer
+				run-json-bridge.psm1                                         <--- Universal _run.json Synchronizer
+				version-resolver.psm1                                        <--- Universal Runtime & Version Detector
 		file
 			csv-to-frontmatter.ps1
 			detector-clipboard-4-mode.ps1  <--- Executable (4-Mode Clipboard & Git Protocol Suite)
@@ -188,7 +204,7 @@ all-lads-tool
 ### 🏛️ Ringkasan 5 Domain Contexts:
 1. **`blender/` (3D & Modeling Pipeline)**: Otomasi mesh cleaning, FBX/glTF batch export, dan material baking via Blender Python API.
 2. **`unity/` (Game Engine & Editor Tools)**: C# Editor utilities, asset post-processors, meta-file cleaners, dan build triggers.
-3. **`repo/` (Git & Repository Orchestration)**: Universal Git Manager (`git-manage.ps1` PowerShell & `git-manage.sh` Git Bash) dilengkapi Git Clone Wizard interaktif (HTTPS, SSH, GitHub CLI, owner/repo slug) dengan pre-flight briefed overview card dan konfirmasi eksplisit `[y/N]`; Historical Commit File Overwrite Engine (`edit-commited-files-but-hidden-in-the-history-with-staged.ps1`) dengan 3-Step No-Default-Enter architecture (Step 1 repo `1..20` + `more`, Step 2 `commit id / more / L / all` [All Commit State], Step 3 5 Opsi `1..5` dengan folder/file custom scope & new-file gate); Branch Renamer (`git-branch-rename.ps1`); Batch Prefix Renamer (`git-all-state-renamer-prefix-v.ps1`); Commit Diff & Sandbox Size Analyzer (`git-diff-commits.ps1`); Remote Owner Identity Reconfig (`git-reconfig-identity.ps1`); Reflog Commit Recovery (`git-recover.ps1`); Historical Commit Message Renamer (`git-rename-commit.ps1`); Submodule Hub (`git-submodule.ps1`); dan Non-destructive Robocopy Sync (`git-sync-from-dir.ps1`).
+3. **`repo/` (Git & Repository Orchestration)**: Universal Git Manager (`git-manage.ps1` PowerShell & `git-manage.sh` Git Bash) dilengkapi Git Clone Wizard interaktif (HTTPS, SSH, GitHub CLI, owner/repo slug) dengan pre-flight briefed overview card dan konfirmasi eksplisit `[y/N]`; Safe Checkpoint Rollback (`git-checkpoint-rollback.ps1` & `git-checkpoint-rollback.sh`) yang memundurkan history via `git reset --soft` menjaga 100% kodingan aman di Staging Area; Historical Commit File Overwrite Engine (`edit-commited-files-but-hidden-in-the-history-with-staged.ps1`) dengan 3-Step No-Default-Enter architecture (Step 1 repo `1..20` + `more`, Step 2 `commit id / more / L / all` [All Commit State], Step 3 5 Opsi `1..5` dengan folder/file custom scope & new-file gate); Branch Renamer (`git-branch-rename.ps1`); Batch Prefix Renamer (`git-all-state-renamer-prefix-v.ps1`); Commit Diff & Sandbox Size Analyzer (`git-diff-commits.ps1`); Remote Owner Identity Reconfig (`git-reconfig-identity.ps1`); Reflog Commit Recovery (`git-recover.ps1`); Historical Commit Message Renamer (`git-rename-commit.ps1`); Submodule Hub (`git-submodule.ps1`); dan Non-destructive Robocopy Sync (`git-sync-from-dir.ps1`).
 4. **`website/` (Web Architecture & Frontend)**: Bundling ES module, SCSS/CSS compiler, DOM accessibility validator, dan Playwright snapshot engine.
 5. **`file/` (File & Data Transformation)**: Universal 4-Mode Clipboard Suite (`PolyClip` / `detector-clipboard-4-mode.ps1`) dengan Unified 5-Column Architecture, Git Multi-Protocol Widget (`[ HTTPS | SSH | GitHub CLI ]`), integrasi native clipboard VS Code Explorer (`text/uri-list`, `FileNameW`), File Lock Inspector & Unlocker (`detector-file-lock-process.ps1`) dengan split action `[Only Instance]` vs `[Unlock All]`, Bidirectional CSV $\leftrightarrow$ YAML Frontmatter bridge, pemecah/penggabung file (`file-merge` / `file-split`), dan PowerShell dry-run simulation engine.
 

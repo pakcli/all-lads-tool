@@ -182,15 +182,24 @@ Fokus pada version control, keamanan riwayat git, dan otomasi branching.
   .\script\repo\git-manage.ps1
   ```
   **Fitur Utama**:
-  1. **Menu [ 1 ] Clone Remote Repository**:
-     - Mendukung format URL: HTTPS (`https://github.com/owner/repo.git`), SSH (`git@github.com:owner/repo.git`), GitHub CLI (`gh repo clone owner/repo`), atau short slug (`owner/repo`).
-     - **Clipboard Auto-Detection**: Otomatis mendeteksi jika URL repositori Git tersimpan di clipboard dan menjadikannya default prompt value.
-     - **Destination Strategy**: Pilihan kloning langsung in-place ke folder kosong terpilih, membuat subfolder baru, atau memasukkan path kustom.
-     - **Opsi Shallow Clone**: Pilihan `--depth 1` untuk download cepat.
-     - **Pre-flight Briefed Overview Card**: Menampilkan rangkuman target path, URL, dan preview perintah `git clone` sebelum dieksekusi.
-     - **Yes-to-Proceed Gating**: Konfirmasi eksplisit `[y/N]` (default Enter = Batal).
-  2. **Multi-Version Adapter**:
-     - Memilih adapter otomatis berdasarkan versi Git terinstal (`adapter/v02-30-00.psm1` untuk Git 2.30+ atau `adapter/v02-40-00.psm1` untuk Git 2.40+).
+  1. **Full Command Matrix `[-1..11, h, t, q]`**:
+     - `[-1]` Discard All Changes (dilindungi konfirmasi `DISCARD`).
+     - `[ 0]` Status Dashboard (menampilkan branch, remotes, dirty files count, ukuran KB, dan log 5 commit terakhir).
+     - `[ 1]` Recover (Reflog browser dengan pemulihan commit terpisah/orphaned, surgical per-file atau full restore).
+     - `[ 2]` Commit (Status preview, staging all/selective, dan Conventional Commit prefix builder `feat/fix/docs/chore/etc`).
+     - `[ 3]` Push (Push aktif ke upstream remote dengan auto tracking setup).
+     - `[ 4]` Pull / Sync (Smart pull: linear rebase, fast-forward only, atau standard merge).
+     - `[ 5]` Assign Git (Init repo dengan default branch `main/pakcli`, auto `.gitignore`, remote setup, dan initial commit).
+     - `[ 6]` Remove Git (*"Remove with more nicer"*: strip attributes `attrib -r -s -h`, hapus locks, konfirmasi `REMOVE`, dan unlink bersih).
+     - `[ 7]` Clone Remote Repository (Git Clone Wizard lengkap dengan clipboard auto-detect dan pre-flight card).
+     - `[ 8]` Worktree Management (List, add isolated branch worktrees, remove, dan prune).
+     - `[ 9]` Custom Shell / Script Runner (Terminal interaktif atau eksekusi drag-and-drop `.ps1`, `.bat`, `.cmd`, `.js`, `.py`).
+     - `[11]` Submodule Hub (Manajemen submodule interaktif).
+     - `[ h]` Help & Shortcuts guide.
+     - `[ t]` Switch Target Directory (Deteksi repositori sibling, sinkronisasi `_run.json`).
+     - `[ q]` Quit.
+  2. **Modular Architecture**:
+     - Menggunakan adapter murni di `script/repo/adapter/` (`git-core.psm1`, `git-status.psm1`, `git-reflog.psm1`, `git-submodule.psm1`, `git-worktree.psm1`).
 
 - **`edit-commited-files-but-hidden-in-the-history-with-staged.ps1` (Historical Commit File Overwrite)**:
   Mengganti atau menyerap perubahan file (staged atau working tree) langsung ke dalam commit tertentu di masa lalu (`HEAD` atau commit SHA historis) maupun ke **seluruh commit di sepanjang histori branch** (`All Commit State`) tanpa meninggalkan node commit sampah (*fixup/typo commits*) di `git log`.
@@ -223,6 +232,16 @@ Fokus pada version control, keamanan riwayat git, dan otomasi branching.
   Terminal cockpit interaktif untuk Git Bash dan POSIX environments (terhubung ke `script/repo/adapter/*.sh`).
   ```bash
   bash script/repo/git-manage.sh [target_directory]
+  ```
+
+- **`git-checkpoint-rollback.ps1` & `git-checkpoint-rollback.sh` (Safe Checkpoint Rollback)**:
+  Mundur ke checkpoint commit masa lalu via `git reset --soft`, menjaga 100% kodingan lokal tetap aman di Git Staging Area (index). Dilengkapi selector commit bernomor, kartu konfirmasi Pre-Flight Briefed Overview, dan opsi sinkronisasi remote (`git push --force-with-lease`).
+  ```powershell
+  # Interactive mode
+  .\script\repo\git-checkpoint-rollback.ps1
+
+  # Git Bash companion
+  bash script/repo/git-checkpoint-rollback.sh
   ```
 
 - **`git-all-state-renamer-prefix-v.ps1` (Git All-State Prefix Renamer)**:

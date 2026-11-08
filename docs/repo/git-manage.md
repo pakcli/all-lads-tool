@@ -1,10 +1,10 @@
 ---
-title: Git Manager
+title: Universal Git Manager & Recovery Engine
 tool: git-manage.ps1
 category: repo & git
 runtime: PowerShell 5.1+ / 7+
-aliases: [git-manage, repo-manager]
-tags: [all-lads-tool, repo, git, adapter, clone, options]
+aliases: [git-manage, repo-manager, universal-git-manager]
+tags: [all-lads-tool, repo, git, adapter, clone, options, recover, worktree, submodule]
 dependencies:
   - "[[modular-architecture-standard]]"
   - "[[zero-hardcoded-variables]]"
@@ -13,118 +13,135 @@ dependencies:
   - "[[confirmation-to-proceed-brief-overview-options]]"
 ---
 
-# `git-manage.ps1` — Universal Git Manager (Context: Repo)
+# `git-manage.ps1` - Universal Git Manager (Context: Repo)
 
 > [!INFO]
 > **Context**: `repo` | **Executable**: `script/repo/git-manage.ps1`
-> **Adapters**: `script/repo/adapter/v02-30-00.psm1` (Git 2.30+), `script/repo/adapter/v02-40-00.psm1` (Git 2.40+)
+> **Adapters**: `script/repo/adapter/git-core.psm1`, `script/repo/adapter/git-status.psm1`, `script/repo/adapter/git-reflog.psm1`, `script/repo/adapter/git-submodule.psm1`, `script/repo/adapter/git-worktree.psm1`
 > **Canonical Documentation**: `docs/repo/git-manage.md` (Matches script filename 1:1)
 
-Orchestrator Git yang mendeteksi versi Git runtime di mesin pengembang secara dinamis dan memuat adapter yang sesuai. Mendukung status repositori real-time, branch rename, log inspect, interaktif retargeting ke direktori lain, dan remote repository cloning dengan pre-flight Briefed Overview.
+Universal Git operations toolkit and recovery engine backed by modular adapters in `script/repo/adapter/`. Supports managing workspace roots, individual project subfolders, or external repositories with live repository inspection, reflog surgical recovery, conventional commit authoring, safe git unlinking, branch worktrees, and interactive cloning with pre-flight Briefed Overview.
 
 ---
 
-## 1. System Options Overview
+## 1. Quick Syntax & Usage
 
-The Git Manager (`script/repo/git-manage.ps1`) exposes the following operations in its interactive cockpit:
+```powershell
+# Interactive master cockpit in active repository / last saved target
+.\all-lads-tool\script\repo\git-manage.ps1
 
-```text
-+-------------------------------------------------------------------------------+
-|                       GIT MANAGER INTERACTIVE COCKPIT                         |
-+-------------------------------------------------------------------------------+
-|                                                                               |
-|  [ 1 ] Refresh Status                                                         |
-|        - Re-evaluates working tree status using `Invoke-GitStatus`.           |
-|        - Queries branch and latest commit without throwing on fresh repos.    |
-|                                                                               |
-|  [ 2 ] Branch Rename (Invoke-GitBranchRename)                                 |
-|        - Renames local active branch using `git branch -m <name>`.            |
-|                                                                               |
-|  [ 3 ] Recent Commits (git log -5)                                            |
-|        - Pretty-prints topological commit graph with author, date, and hash.  |
-|                                                                               |
-|  [ 4 ] Git Clone Remote Repository (Invoke-GitClone)                          |
-|        - Launches the interactive Git Clone Wizard with Briefed Overview.     |
-|        - Auto-retargets active workspace to the newly cloned repository.      |
-|                                                                               |
-|  [ t ] Retarget Directory (Switch Git Repo)                                   |
-|        - Scans parent workspace for sibling Git repositories.                |
-|        - Allows entering custom paths or triggering Git Clone directly.       |
-|                                                                               |
-|  [ q ] Quit                                                                   |
-|        - Exits the Git Manager cleanly.                                       |
-|                                                                               |
-+-------------------------------------------------------------------------------+
+# Target a specific repository or cartridge path
+.\all-lads-tool\script\repo\git-manage.ps1 -TargetDir "e:\proj\web-app_sims-homebox"
+
+# Direct headless action invocation
+.\all-lads-tool\script\repo\git-manage.ps1 -Action "status"
+.\all-lads-tool\script\repo\git-manage.ps1 -Action "recover"
+.\all-lads-tool\script\repo\git-manage.ps1 -Action "commit"
+.\all-lads-tool\script\repo\git-manage.ps1 -Action "push"
+.\all-lads-tool\script\repo\git-manage.ps1 -Action "pull"
+.\all-lads-tool\script\repo\git-manage.ps1 -Action "discard"
+.\all-lads-tool\script\repo\git-manage.ps1 -Action "assign"
+.\all-lads-tool\script\repo\git-manage.ps1 -Action "remove"
+.\all-lads-tool\script\repo\git-manage.ps1 -Action "clone"
+.\all-lads-tool\script\repo\git-manage.ps1 -Action "worktree"
+.\all-lads-tool\script\repo\git-manage.ps1 -Action "shell"
+.\all-lads-tool\script\repo\git-manage.ps1 -Action "submodule"
 ```
 
 ---
 
-## 2. Non-Git Directory Retargeting Protocol
+## 2. Command Matrix (-1 to 9, 11 & Footer)
 
-When `git-manage.ps1` starts on a non-Git directory, or when retargeting (`t`) points to a non-Git path:
-
-1. **Non-Destructive Alert**: The system signals `[ALERT] '<path>' is not a git repository.`
-2. **Action Dispatcher**:
-   - `[ 1 ] Clone a remote repository here (Git Clone Wizard)`: Assigns the folder as clone destination.
-   - `[ 2 ] Select another Git repository from workspace`: Re-opens the workspace scanner.
-   - `[ 3 ] Initialize a fresh Git repository here (git init)`: Runs `git init` and synchronizes target.
-   - `[ q ] Quit`: Aborts without side effects.
-
----
-
-## 3. URL Ingestion & Normalization Engine
-
-The clone engine accepts all four standard GitHub clone formats:
-
-```text
-+---------------------+---------------------------------------------------------+-------------------------------------------------------------+
-| INPUT FORMAT        | EXAMPLE RAW INPUT                                       | PARSED PROTOCOL & NORMALIZED TARGET                         |
-+---------------------+---------------------------------------------------------+-------------------------------------------------------------+
-| HTTPS URL           | https://github.com/pakcli/absolute-home-inventory.git    | HTTPS: https://github.com/pakcli/absolute-home-inventory.git|
-| SSH URL             | git@github.com:pakcli/absolute-home-inventory.git        | SSH: git@github.com:pakcli/absolute-home-inventory.git     |
-| GitHub CLI Command  | gh repo clone pakcli/absolute-home-inventory            | CLI: https://github.com/pakcli/absolute-home-inventory.git  |
-| Short-Form Slug     | pakcli/absolute-home-inventory                          | SLUG: https://github.com/pakcli/absolute-home-inventory.git |
-+---------------------+---------------------------------------------------------+-------------------------------------------------------------+
-```
+| Key | Action | Description | Safety Level |
+| :--- | :--- | :--- | :--- |
+| `[-1]` | **Discard All** | Reverts uncommitted changes (`git restore .` + `git clean -fd`) | Protected (requires typing `DISCARD`) |
+| `[ 0]` | **Status** | Live dashboard of branch, remotes, dirty file counts, and recent commits | Read-Only |
+| `[ 1]` | **Recover** | Reflog browser with detached commit detection & surgical/full restore | Non-destructive preview |
+| `[ 2]` | **Commit** | Status preview, staging options (All/Selective), & Conventional Commit prefix helper | Standard |
+| `[ 3]` | **Push** | Pushes active branch to upstream remote with auto tracking setup | Standard |
+| `[ 4]` | **Pull / Sync** | Smart pull (Rebase, Fast-Forward only, or Merge) | Standard |
+| `[ 5]` | **Assign Git** | Initializes Git repo (`git init -b main/pakcli`), adds remote, creates `.gitignore`, initial commit | Safe |
+| `[ 6]` | **Remove Git** | "Remove with more nicer": Unlocks ReadOnly/hidden attributes, cleans locks, deletes `.git` cleanly | Protected (requires typing `REMOVE`) |
+| `[ 7]` | **Clone** | Clones external repo into target directory or designated subfolder with pre-flight card | Standard |
+| `[ 8]` | **Worktree** | Manages isolated worktree branches (`list`, `add`, `remove`, `prune`) | Safe |
+| `[ 9]` | **Custom Shell** | Runs arbitrary git commands or executes drag & dropped scripts (`.ps1`, `.bat`, `.js`, `.py`) | Standard |
+| `[11]` | **Submodule** | Interactive Git Submodule Hub (list, add, remove, sync) | Standard |
+| `[ h]` | **Help** | Displays full guide and shortcut instructions | Read-Only |
+| `[ t]` | **Switch Target** | Switch target directory (workspace root, sibling repos, or drag & drop path) | Interactive |
+| `[ q]` | **Quit** | Exits the interactive manager | Read-Only |
 
 ---
 
-## 4. Destination Strategies
+## 3. Detailed Feature Breakdown
 
-- **Mode A: In-Place Clone (`.`)**:
-  - Permitted only if the target directory exists and is completely clean (zero files/subfolders).
-  - Clones repository root directly into the specified directory without creating an extra subfolder level.
-- **Mode B: Subdirectory Clone (`<target>/<repo-name>`)**:
-  - Default when target directory is non-empty or when cloning from within a parent workspace.
-  - Automatically infers the repository name from the URL slug (e.g., `absolute-home-inventory`).
-- **Mode C: Custom Directory**:
-  - Allows manual override of destination path.
+### Action [-1]: Discard All Changes
+- Displays uncommitted and untracked files with color status.
+- Protected by mandatory prompt typing `DISCARD`.
+- Executes `git restore .`, `git checkout -- .`, and `git clean -fd`.
+
+### Action [0]: Status Dashboard
+- Scans working tree using `adapter/git-status.psm1`.
+- Displays active branch, remotes, dirty file counts, and total dirty file size in KB.
+- Pretty-prints recent 5 commits with hashes and timestamps.
+
+### Action [1]: Reflog Commit Recovery
+- Evaluates recent reflogs via `adapter/git-reflog.psm1`.
+- Identifies detached/lost commits versus reachable branched commits.
+- Inspects changed files within selected commit and offers:
+  1. *Simple overwrite all*: Restores all commit files into working tree.
+  2. *Per-file overwrite*: Interactive prompt per modified file (`1` = overwrite, `0` = skip).
+
+### Action [2]: Commit Assistant
+- Live uncommitted change preview.
+- Staging mode selection: Stage all (`git add -A`) or selective per-file staging.
+- Conventional Commit prefix builder (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`, `style:`, or custom raw message) with optional scope prompting.
+
+### Action [3]: Push
+- Verifies branch is not detached.
+- Inspects upstream tracking status and pushes with `--set-upstream` automatically when required.
+
+### Action [4]: Pull / Sync
+- Offers 3 synchronization strategies:
+  1. Rebase (`git pull --rebase` for clean linear history).
+  2. Fast-forward only (`git pull --ff-only`).
+  3. Standard merge (`git pull`).
+
+### Action [5]: Assign Git (Initialize Repository)
+- Creates fresh Git repository using default branch `main/pakcli`.
+- Automatically provisions standard `.gitignore` template if absent (`node_modules/`, `dist/`, `build/`, `*.log`, `*.tmp`, `*.bak`).
+- Optionally configures remote `origin` and creates initial commit.
+
+### Action [6]: Remove Git (Safe Unlink - "Remove with more nicer")
+- Cleanly strips `.git` directory without harming working project files.
+- Strips Read-Only, System, and Hidden attributes across `.git` using `attrib -r -s -h`.
+- Purges lingering `index.lock` and `HEAD.lock` files.
+- Gated by mandatory uppercase confirmation `REMOVE`.
+
+### Action [7]: Git Clone Wizard
+- Ingests HTTPS, SSH, GitHub CLI (`gh repo clone`), or short slugs (`owner/repo`).
+- Auto-detects repository URLs copied to the system clipboard.
+- Pre-flight Briefed Overview card displays resolved URL, destination path, branch, and shallow depth.
+- Explicit `y`/`yes` confirmation gating before running `git clone`.
+
+### Action [8]: Worktree Management
+- Powered by `adapter/git-worktree.psm1`.
+- Lists active worktrees with branches and commit heads.
+- Allows provisioning isolated worktree branches into dedicated subfolders (`../wt-<branch>`).
+- Safely removes and prunes stale worktrees.
+
+### Action [9]: Custom Shell / Script Runner
+- Interactive command prompt scoped to target directory.
+- Runs arbitrary git/cmd commands or executes dragged-and-dropped script files (`.ps1`, `.bat`, `.cmd`, `.js`, `.py`).
+
+### Action [11]: Submodule Hub
+- Connects to `script/repo/git-submodule.ps1` and `adapter/git-submodule.psm1`.
+- Headless and interactive listing, addition, unlinking, and recursive updating of submodules.
 
 ---
 
-## 5. Pre-Flight Briefed Overview Card
+## 4. Retargeting Protocol & `_run.json` Synchronization
 
-Before executing `Invoke-GitClone`, the tool renders the Briefed Overview card:
-
-```text
-==========================================================
-   GIT CLONE PRE-FLIGHT BRIEFED OVERVIEW
-==========================================================
- Remote URL    : https://github.com/pakcli/absolute-home-inventory.git
- Target Path   : <workspace_root>/absolute-home-inventory
- Clone Mode    : New Subdirectory
- Branch        : (Remote Default HEAD)
- History Depth : Full History
- Command       : git clone https://github.com/pakcli/absolute-home-inventory.git "<workspace_root>/absolute-home-inventory"
-==========================================================
-
-Proceed with git clone? [y/N] (Type 'y' or 'yes' to proceed):
-```
-
-### Confirmation Gating Rules:
-1. Only explicit `y` or `yes` (case-insensitive) advances execution.
-2. Pressing `Enter`, typing `n`, `no`, or any other key immediately cancels the operation with `[CANCELLED] Git clone aborted by user confirmation check.`
-3. On successful clone:
-   - Validates `.git` exists in target.
-   - Calls `Update-RunJsonTarget` to persist new target in `_run.json`.
-   - Switches the active session to the new repository and displays its status.
+- `[ t ] Switch Target`: Discovers sibling Git repositories in workspace root.
+- Allows switching active focus without restarting the process.
+- Persists chosen repository target into `_run.json` (`targetDir`) so all sibling scripts inherit the updated target.
+- Fully supports drag-and-drop paths directly onto prompt inputs.

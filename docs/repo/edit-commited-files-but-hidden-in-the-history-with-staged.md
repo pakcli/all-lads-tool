@@ -13,7 +13,7 @@ dependencies:
   - "[[skill/asci-tree-codeblock-standard-without-branch.md|asci-tree-codeblock-standard-without-branch]]"
 ---
 
-# `edit-commited-files-but-hidden-in-the-history-with-staged.ps1` — Historical Commit File Overwrite
+# `edit-commited-files-but-hidden-in-the-history-with-staged.ps1` - Historical Commit File Overwrite
 
 > [!IMPORTANT]
 > **Context**: `repo` | **Executable**: `script/repo/edit-commited-files-but-hidden-in-the-history-with-staged.ps1`  
@@ -125,10 +125,10 @@ param(
 
 1. **Deterministic Safety Backup Ref**:
    - Before touching history, records `refs/backup/commit-overwrite-<yyyyMMdd-HHmmss>` pointing to current `HEAD`.
-2. **Case A — Target Commit is `HEAD` (`$TargetCommit.IsHead == $true`)**:
+2. **Case A - Target Commit is `HEAD` (`$TargetCommit.IsHead == $true`)**:
    - Reads the target commit's original committer timestamp (`%cI`) and sets `$env:GIT_COMMITTER_DATE = $TargetCommit.CommitDateIso`.
    - Executes `git commit --amend --no-edit` after isolating the index to the exact target files, updating `HEAD` in place without changing its commit message or committer timestamp.
-3. **Case B — Target Commit is Historical (`$TargetCommit.IsHead == $false`)**:
+3. **Case B - Target Commit is Historical (`$TargetCommit.IsHead == $false`)**:
    - Creates a temporary `fixup!` commit targeting `$TargetCommit.FullHash` (`git commit --fixup=<FullHash>`).
    - Executes non-interactive autosquash rebase:
      `git -c sequence.editor=true rebase -i --autosquash --autostash --committer-date-is-author-date <FullHash>~1` (or `--root` if targeting the repository's initial root commit).
