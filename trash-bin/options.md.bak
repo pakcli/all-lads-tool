@@ -1,0 +1,35 @@
+---
+title: Git Clone Briefed Overview Options Standard
+version: v01-00
+status: active
+dependencies:
+  - "[[modular-architecture-standard]]"
+  - "[[zero-hardcoded-variables]]"
+  - "[[zero-emoji-serious-mode]]"
+  - "[[git-clone-briefed-overview]]"
+---
+
+# Brief: Git Clone Briefed Overview & Retarget Options (`options.md`)
+
+## Status
+- **Status**: Active Technical Standard
+- **Scope**: Repository Management, Git Clone Gating, Non-Git Retargeting
+
+---
+
+## 1. Context & Motivation
+Directly invoking unchecked Git clone commands in interactive development environments risks overwriting existing folders, placing repositories in unintentional directories, or cloning massive histories unexpectedly. 
+
+This brief defines the mandatory **Briefed Overview** and **Yes-to-Proceed Gating** protocol for Git cloning and non-Git directory retargeting across the `all-lads-tool` ecosystem.
+
+---
+
+## 2. Core Invariants
+1. **Multi-Protocol Acceptance**: The system accepts HTTPS, SSH, GitHub CLI (`gh repo clone`), and short-form `owner/repo` inputs.
+2. **Non-Git Retargeting Safety**: When retargeting to a folder lacking a `.git` root, the system must offer to assign it as a clone target or initialize it, rather than throwing an unhandled fatal error.
+3. **Mandatory Briefed Overview**: Prior to any network transfer or disk allocation, an overview card must present remote URL, target path, directory mode, branch, and command preview.
+4. **Explicit Yes-to-Proceed**: Execution requires explicit affirmative confirmation (`y` / `yes`). Empty input defaults to cancellation.
+5. **State Synchronization**: Successful clones immediately update `_run.json` and switch the active session context.
+
+Reference implementation: `script/repo/git-manage.ps1`.
+Technical specification: `script/repo/options.md`.

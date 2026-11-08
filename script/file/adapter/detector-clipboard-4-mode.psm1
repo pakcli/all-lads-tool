@@ -40,6 +40,9 @@ foreach ($mod in $subModules) {
 # Export all public adapter functions
 Export-ModuleMember -Function @(
     "Get-ClipboardSnapshot",
+    "Convert-ToNativePath",
+    "Convert-ToGitRepoInfo",
+    "Extract-PathsFromDataObject",
     "Invoke-ApplyMode",
     "Promote-ToFirst",
     "Load-PersistentHistory",
@@ -56,6 +59,7 @@ Export-ModuleMember -Function @(
     "New-BlueOutPlaceholder",
     "New-MissingFileCell",
     "New-ExpandableCell",
+    "New-GitProtocolCell",
     "Update-ToggleVisual",
     "Add-RowCard",
     "New-PolyClipRowCard",

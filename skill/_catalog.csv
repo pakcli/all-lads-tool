@@ -83,3 +83,16 @@ skill,trigger
 "[[save-option-as-exact-executor-name-json]]",always_on
 "[[anti-generic-core-engine-naming]]",always_on
 "[[update-readme-and-guide-and-what-commit-message-donot-commit-yet]]",always_on
+"[[git-clone-briefed-overview]]",always_on
+"[[confirmation-to-proceed-brief-overview-options]]",always_on
+"[[docs-same-file-name-script]]",always_on
+"[[zero-hardcoded-sensitive-variables]]",always_on
+"[[donot-code-yet]]",always_on
+"[[explain-install-engine-data-input-without-agent-reading-system]]",always_on
+"[[explain-install-engine-data-input-bounded-relative]]",always_on
+"[[donot-ngada-ngada-exact-lapangan-variables]]",always_on
+"[[01-number-one-rule-DONOT-REMOVE-ANYTHING-THAT-I-DIDNOT-ASKED]]",always_on
+"[[what-todo-trying-to-modify-move-delete-on-going-prosseeeing-by-other-app]]",always_on
+"[[privacy-default-masking-2-letter-exposure]]",always_on
+"[[donot-code-yet-allow-markdown-creation-all]]",always_on
+"[[donot-code-yet-allow-markdown-creation-brief-only]]",always_on

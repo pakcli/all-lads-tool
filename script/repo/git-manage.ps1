@@ -143,6 +143,194 @@ function Get-WorkspaceGitRepos ([string]$basePath) {
     return ($found | Sort-Object FullName -Unique)
 }
 
+# Helper to clean and normalize Git clone URLs (HTTPS, SSH, GitHub CLI, or owner/repo)
+function ConvertTo-GitCloneUrl ([string]$rawInput) {
+    if (-not $rawInput) { return "" }
+    $clean = $rawInput.Trim().Trim('"').Trim("'")
+
+    # Handle GitHub CLI: "gh repo clone owner/repo" or "gh repo clone https://..."
+    if ($clean -match 'gh\s+repo\s+clone\s+(?<repo>\S+)') {
+        $clean = $Matches['repo'].Trim()
+    }
+
+    # Handle short-form "owner/repo" (no protocol, contains single slash, no spaces)
+    if ($clean -match '^([a-zA-Z0-9_\-\.]+)/([a-zA-Z0-9_\-\.]+)$') {
+        return "https://github.com/$clean.git"
+    }
+
+    return $clean
+}
+
+# Helper to infer a clean repo folder name from a Git clone URL
+function Get-GitRepoNameFromUrl ([string]$url) {
+    if (-not $url) { return "cloned-repo" }
+    $trimmed = $url.Trim().TrimEnd('/')
+    $base = [System.IO.Path]::GetFileNameWithoutExtension($trimmed)
+    if ($base -match '[:/](?<name>[^/:]+)$') {
+        $base = $Matches['name']
+    }
+    $base = $base -replace '\.git$', ''
+    return if ($base) { $base } else { "cloned-repo" }
+}
+
+# Interactive Git Clone Wizard with Briefed Overview & explicit confirmation gating
+function Start-GitCloneWizard {
+    param(
+        [string]$SuggestedDestination = "",
+        [string]$PrefilledUrl = ""
+    )
+    Write-Host ""
+    Write-Host "==========================================================" -ForegroundColor Cyan
+    Write-Host "   GIT CLONE WIZARD (CONTEXT: REPO)                       " -ForegroundColor Yellow
+    Write-Host "==========================================================" -ForegroundColor Cyan
+    Write-Host " Supported URL formats: HTTPS, SSH, GitHub CLI, or owner/repo" -ForegroundColor DarkGray
+    Write-Host ""
+
+    # 1. Prompt for URL if not provided (with automatic clipboard pre-fill detection)
+    $rawUrl = $PrefilledUrl
+    if (-not $rawUrl) {
+        $detectedClip = $null
+        try {
+            Add-Type -AssemblyName System.Windows.Forms -ErrorAction SilentlyContinue
+            if ([System.Windows.Forms.Clipboard]::ContainsText()) {
+                $clipRaw = [System.Windows.Forms.Clipboard]::GetText()
+                if ($clipRaw) {
+                    $cand = ConvertTo-GitCloneUrl $clipRaw
+                    if ($cand -and ($cand -match '^https?:\/\/' -or $cand -match '^git@' -or $cand -match 'gh\s+repo\s+clone')) {
+                        $detectedClip = $cand
+                    }
+                }
+            }
+        } catch {}
+
+        if ($detectedClip) {
+            Write-Host " [DETECTED CLIPBOARD REPO] Found: $detectedClip" -ForegroundColor Green
+            $promptMsg = "Remote Repository URL / GitHub CLI command [Default: $detectedClip]"
+            $userInput = Read-Host $promptMsg
+            if ([string]::IsNullOrWhiteSpace($userInput)) {
+                $rawUrl = $detectedClip
+            } else {
+                $rawUrl = $userInput
+            }
+        } else {
+            $rawUrl = Read-Host "Remote Repository URL / GitHub CLI command"
+        }
+    }
+    $url = ConvertTo-GitCloneUrl $rawUrl
+    if (-not $url) {
+        Write-Host "[CANCELLED] URL is empty. Aborting clone." -ForegroundColor Yellow
+        return $null
+    }
+
+    $repoName = Get-GitRepoNameFromUrl $url
+
+    # 2. Destination Strategy
+    Write-Host "`nTarget Destination Options:" -ForegroundColor White
+    $destOptions = @()
+    if ($SuggestedDestination -and (Test-Path -LiteralPath $SuggestedDestination)) {
+        $isEmpty = @(Get-ChildItem -LiteralPath $SuggestedDestination -Force -ErrorAction SilentlyContinue).Count -eq 0
+        if ($isEmpty) {
+            Write-Host "  [ 1 ] Clone directly into selected directory: $SuggestedDestination" -ForegroundColor Green
+            $destOptions += @{ Key = "1"; Path = $SuggestedDestination; Mode = "In-Place (Clean Target Directory)" }
+        } else {
+            Write-Host "  [ 1 ] Selected directory is NOT empty: $SuggestedDestination" -ForegroundColor DarkGray
+        }
+        $subPath = Join-Path $SuggestedDestination $repoName
+        Write-Host "  [ 2 ] Clone into new subfolder: $subPath" -ForegroundColor White
+        $destOptions += @{ Key = "2"; Path = $subPath; Mode = "New Subdirectory" }
+    } else {
+        $defaultRoot = if ($currentTarget -and (Test-Path -LiteralPath $currentTarget)) {
+            if (Test-IsGitRepo $currentTarget) { Split-Path $currentTarget -Parent } else { $currentTarget }
+        } else {
+            (Get-Location).Path
+        }
+        $defaultTarget = Join-Path $defaultRoot $repoName
+        Write-Host "  [ 1 ] Clone to workspace subfolder: $defaultTarget" -ForegroundColor White
+        $destOptions += @{ Key = "1"; Path = $defaultTarget; Mode = "Workspace Subdirectory" }
+    }
+    Write-Host "  [ c ] Enter custom destination path" -ForegroundColor Cyan
+    Write-Host "  [ q ] Cancel clone" -ForegroundColor DarkGray
+
+    $destChoice = Read-Host "Select destination [Default: 1]"
+    if ([string]::IsNullOrWhiteSpace($destChoice)) { $destChoice = "1" }
+    $destChoice = $destChoice.Trim()
+
+    if ($destChoice -eq 'q') {
+        Write-Host "[CANCELLED] Clone cancelled by user." -ForegroundColor DarkGray
+        return $null
+    }
+
+    $finalDest = ""
+    $finalMode = "Custom Subdirectory"
+    $opt = $destOptions | Where-Object { $_.Key -eq $destChoice }
+    if ($opt) {
+        $finalDest = $opt.Path
+        $finalMode = $opt.Mode
+    } elseif ($destChoice -eq 'c') {
+        $cust = Read-Host "Enter custom full directory path"
+        if (-not $cust) {
+            Write-Host "[CANCELLED] Path is empty." -ForegroundColor Yellow
+            return $null
+        }
+        $finalDest = $cust.Trim().Trim('"').Trim("'")
+        $finalMode = "Custom Path"
+    } else {
+        Write-Host "[CANCELLED] Invalid destination selection." -ForegroundColor Yellow
+        return $null
+    }
+
+    # 3. Optional Branch
+    Write-Host ""
+    $branchInput = Read-Host "Specific Branch (optional - press Enter for default branch)"
+    $branch = if ($branchInput) { $branchInput.Trim() } else { "" }
+
+    # 4. Optional Depth
+    $depth = 0
+    $shallowPrompt = Read-Host "Shallow clone (--depth 1 for fast download)? [y/N] [Default: N]"
+    if ($shallowPrompt -match '^(y|yes)$') {
+        $depth = 1
+    }
+
+    # 5. Pre-flight Briefed Overview Card (options.md standard)
+    $cmdPreview = "git clone"
+    if ($branch) { $cmdPreview += " --branch $branch" }
+    if ($depth -gt 0) { $cmdPreview += " --depth $depth" }
+    $cmdPreview += " $url `"$finalDest`""
+
+    Write-Host ""
+    Write-Host "==========================================================" -ForegroundColor Cyan
+    Write-Host "   GIT CLONE PRE-FLIGHT BRIEFED OVERVIEW                  " -ForegroundColor Yellow
+    Write-Host "==========================================================" -ForegroundColor Cyan
+    Write-Host " Remote URL    : $url" -ForegroundColor White
+    Write-Host " Target Path   : $finalDest" -ForegroundColor White
+    Write-Host " Clone Mode    : $finalMode" -ForegroundColor DarkGray
+    Write-Host " Branch        : $(if ($branch) { $branch } else { '(Remote Default HEAD)' })" -ForegroundColor DarkGray
+    Write-Host " History Depth : $(if ($depth -gt 0) { 'Shallow (1)' } else { 'Full History' })" -ForegroundColor DarkGray
+    Write-Host " Command       : $cmdPreview" -ForegroundColor Cyan
+    Write-Host "==========================================================" -ForegroundColor Cyan
+    Write-Host ""
+
+    # 6. Explicit Yes-To-Proceed Confirmation Gating
+    $confirm = Read-Host "Proceed with git clone? [y/N] (Type 'y' or 'yes' to proceed)"
+    if ($confirm -notmatch '^(y|yes)$') {
+        Write-Host "[CANCELLED] Git clone aborted by user confirmation check." -ForegroundColor Yellow
+        return $null
+    }
+
+    # 7. Execute Clone via Adapter
+    Write-Host "`n[START] Cloning repository..." -ForegroundColor Green
+    $cloneOk = Invoke-GitClone -Url $url -DestinationPath $finalDest -Branch $branch -Depth $depth
+
+    if ($cloneOk -and (Test-IsGitRepo $finalDest)) {
+        Write-Host "`n[SUCCESS] Repository cloned successfully to: $finalDest" -ForegroundColor Green
+        Update-RunJsonTarget $finalDest
+        return $finalDest
+    } else {
+        Write-Host "`n[ERROR] Git clone failed or target directory is not a valid git repository." -ForegroundColor Red
+        return $null
+    }
+}
+
 # Function to interactively select or switch target repo
 function Select-TargetRepo ([string]$current) {
     Write-Host ""
@@ -161,7 +349,7 @@ function Select-TargetRepo ([string]$current) {
         }
     }
     Write-Host ""
-    Write-Host " Enter number [1-$($repos.Count)], enter custom path, or [q] to cancel:" -ForegroundColor White
+    Write-Host " Enter number [1-$($repos.Count)], enter custom path, [c] to clone, or [q] to cancel:" -ForegroundColor White
     $sel = Read-Host " Target"
     $sel = if ($sel) { $sel.Trim().Trim('"').Trim("'") } else { "" }
 
@@ -170,6 +358,12 @@ function Select-TargetRepo ([string]$current) {
         Update-RunJsonTarget $newTarget
         Write-Host "[OK] Target switched to: $newTarget" -ForegroundColor Green
         return $newTarget
+    } elseif ($sel -eq 'c') {
+        $cloned = Start-GitCloneWizard -SuggestedDestination $current
+        if ($cloned -and (Test-IsGitRepo $cloned)) {
+            return $cloned
+        }
+        return $current
     } elseif ($sel -and (Test-Path $sel)) {
         $resolved = (Resolve-Path $sel).Path
         if (Test-IsGitRepo $resolved) {
@@ -177,7 +371,14 @@ function Select-TargetRepo ([string]$current) {
             Write-Host "[OK] Target switched to: $resolved" -ForegroundColor Green
             return $resolved
         } else {
-            Write-Host "[WARNING] '$resolved' is not a git repository." -ForegroundColor Yellow
+            Write-Host "[ALERT] '$resolved' is not a git repository." -ForegroundColor Yellow
+            $askClone = Read-Host "Assign as clone destination and clone a repository here? [y/N] [Default: Y]"
+            if ([string]::IsNullOrWhiteSpace($askClone) -or $askClone -match '^(y|yes)$') {
+                $cloned = Start-GitCloneWizard -SuggestedDestination $resolved
+                if ($cloned -and (Test-IsGitRepo $cloned)) {
+                    return $cloned
+                }
+            }
             return $resolved
         }
     } elseif ($sel -eq 'q') {
@@ -188,13 +389,54 @@ function Select-TargetRepo ([string]$current) {
     }
 }
 
-# 3. If target is not a Git repo, prompt to select
-if (-not (Test-IsGitRepo $currentTarget)) {
-    Write-Host "[ALERT] '$currentTarget' is not a git repository." -ForegroundColor Yellow
-    $currentTarget = Select-TargetRepo $currentTarget
-    if (-not (Test-IsGitRepo $currentTarget)) {
-        Write-Host "[ERROR] Operation aborted: A valid Git repository is required." -ForegroundColor Red
-        exit 1
+# 3. If target is not a Git repo, offer clone, select, or init
+while (-not (Test-IsGitRepo $currentTarget)) {
+    Write-Host ""
+    Write-Host "==========================================================" -ForegroundColor Cyan
+    Write-Host "   TARGET IS NOT A GIT REPOSITORY                         " -ForegroundColor Yellow
+    Write-Host "==========================================================" -ForegroundColor Cyan
+    Write-Host " Current Directory : $currentTarget" -ForegroundColor White
+    Write-Host ""
+    Write-Host " Available Actions:" -ForegroundColor White
+    Write-Host "  [ 1 ] Clone a remote repository here (Git Clone Wizard)" -ForegroundColor Green
+    Write-Host "  [ 2 ] Select another Git repository from workspace" -ForegroundColor White
+    Write-Host "  [ 3 ] Initialize a fresh Git repository here (git init)" -ForegroundColor Cyan
+    Write-Host "  [ q ] Quit" -ForegroundColor DarkGray
+    Write-Host "==========================================================" -ForegroundColor Cyan
+
+    $nonGitChoice = Read-Host "Select option [1-3, q] [Default: 1]"
+    if ([string]::IsNullOrWhiteSpace($nonGitChoice)) { $nonGitChoice = "1" }
+    $nonGitChoice = $nonGitChoice.Trim()
+
+    switch ($nonGitChoice) {
+        "1" {
+            $cloned = Start-GitCloneWizard -SuggestedDestination $currentTarget
+            if ($cloned -and (Test-IsGitRepo $cloned)) {
+                $currentTarget = $cloned
+            }
+        }
+        "2" {
+            $currentTarget = Select-TargetRepo $currentTarget
+        }
+        "3" {
+            $initConfirm = Read-Host "Initialize new Git repository at '$currentTarget'? [y/N]"
+            if ($initConfirm -match '^(y|yes)$') {
+                $initRes = Invoke-GitSafe -RepoPath $currentTarget -GitArgs @('init')
+                if ($initRes.Success) {
+                    Write-Host "[OK] Git repository initialized at $currentTarget" -ForegroundColor Green
+                    Update-RunJsonTarget $currentTarget
+                } else {
+                    Write-Host "[ERROR] Failed to init git repo: $($initRes.Output -join ' ')" -ForegroundColor Red
+                }
+            }
+        }
+        "q" {
+            Write-Host "Operation aborted: A valid Git repository is required." -ForegroundColor DarkGray
+            exit 0
+        }
+        default {
+            Write-Host "Invalid option." -ForegroundColor Yellow
+        }
     }
 }
 
@@ -240,24 +482,25 @@ while ($true) {
     Write-Host "  [ 1 ] Refresh Status" -ForegroundColor White
     Write-Host "  [ 2 ] Branch Rename (Invoke-GitBranchRename)" -ForegroundColor White
     Write-Host "  [ 3 ] Recent Commits (git log -5)" -ForegroundColor White
+    Write-Host "  [ 4 ] Git Clone Remote Repository (Invoke-GitClone)" -ForegroundColor Green
     Write-Host "  [ t ] Retarget Directory (Switch Git Repo)" -ForegroundColor Cyan
     Write-Host "  [ q ] Quit" -ForegroundColor Gray
     Write-Host "==========================================================" -ForegroundColor Cyan
 
-    $choice = Read-Host "Select option [1-3, t, q] [Default: 1]"
+    $choice = Read-Host "Select option [1-4, t, q] [Default: 1]"
     if ([string]::IsNullOrWhiteSpace($choice)) { $choice = "1" }
     $choice = $choice.Trim()
 
-    switch ($choice) {
-        "1" { continue }
-        "2" {
+    switch -Regex ($choice) {
+        "^1$" { continue }
+        "^2$" {
             $newBr = Read-Host "TARGET BRANCH NAME (Nama branch baru)"
             if ($newBr) {
                 Invoke-GitBranchRename -NewBranch $newBr.Trim() -RepoPath $currentTarget
             }
             Start-Sleep -Seconds 1
         }
-        "3" {
+        "^3$" {
             Write-Host "`nRecent 5 Commits:" -ForegroundColor Green
             $commitCheck = Invoke-GitSafe -RepoPath $currentTarget -GitArgs @('rev-parse', '--verify', 'HEAD')
             if ($commitCheck.Success) {
@@ -271,11 +514,19 @@ while ($true) {
             Write-Host ""
             Read-Host "Press Enter to return to menu"
         }
-        "t" {
+        "^(4|c|clone)$" {
+            $parentRoot = if (Test-IsGitRepo $currentTarget) { Split-Path $currentTarget -Parent } else { $currentTarget }
+            $cloned = Start-GitCloneWizard -SuggestedDestination $parentRoot
+            if ($cloned -and (Test-IsGitRepo $cloned)) {
+                $currentTarget = $cloned
+            }
+            Start-Sleep -Seconds 1
+        }
+        "^t$" {
             $currentTarget = Select-TargetRepo $currentTarget
             Start-Sleep -Seconds 1
         }
-        "q" {
+        "^q$" {
             Write-Host "Exiting Git Manager." -ForegroundColor DarkGray
             break
         }

@@ -1,4 +1,4 @@
-﻿<#
+<#
 .SYNOPSIS
     PolyClip Terminal CLI Interactive Dashboard Adapter
 .DESCRIPTION
@@ -40,6 +40,24 @@ function Render-CLI {
         $histLines += "|  (empty)                                                           |"
     }
 
+    $modesBlock = if ($Snap.IsGitRepo) {
+@"
+| GIT PROTOCOL DETECTED: $($Snap.GitSlug.PadRight(42))|
+|  [1] HTTPS      : $($Snap.GitHttpsUrl.PadRight(47))|
+|  [2] SSH        : $($Snap.GitSshUrl.PadRight(47))|
+|  [3] GitHub CLI : $($Snap.GitGhCli.PadRight(47))|
+|  [4] Git Clone  : $($Snap.GitCloneCmd.PadRight(47))|
+"@
+    } else {
+@"
+| MODES AVAILABLE TO APPLY:                                          |
+|  [1] PLAIN TEXT (raw string to clipboard)                         |
+|  [2] FILE PATH  (resolved disk path string)                       |
+|  [3] CONTENT    (first 15 chars preview -> full script buffer)    |
+|  [4] EXACT FILE (CF_HDROP explorer pasteable file drop)            |
+"@
+    }
+
     $out = @"
 $esc[2J$esc[H+--------------------------------------------------------------------+
 |                POLYCLIP CLI - 4-MODE CLIPBOARD SUITE               |
@@ -48,11 +66,7 @@ $esc[2J$esc[H+------------------------------------------------------------------
 | Status: $($openBadge.PadRight(50))     |
 | Target: $($pDisp.PadRight(55))|
 +--------------------------------------------------------------------+
-| MODES AVAILABLE TO APPLY:                                          |
-|  [1] PLAIN TEXT (raw string to clipboard)                         |
-|  [2] FILE PATH  (resolved disk path string)                       |
-|  [3] CONTENT    (first 15 chars preview -> full script buffer)    |
-|  [4] EXACT FILE (CF_HDROP explorer pasteable file drop)            |
+$modesBlock
 +--------------------------------------------------------------------+
 | RECENT HISTORY:                                                    |
 $($histLines[0])

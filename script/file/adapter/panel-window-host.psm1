@@ -23,7 +23,7 @@ function Show-LightweightPanel {
             IsOpenable    = $true
             OpenStatus    = "READY"
             Mode1_Text    = "PolyClip Active. Copy any file or text in VS Code/Explorer!"
-            Mode2_Path    = "E:\proj"
+            Mode2_Path    = (Get-Location).Path
             Mode3_Content = "Copy any file in VS Code or Explorer. Openable files (.md, code) will appear here in Green!"
             Mode4_File    = ""
         }

@@ -11,6 +11,7 @@ dependencies:
   - "[[zero-emoji-serious-mode]]"
   - "[[zero-hardcoded-variables]]"
   - "[[modular-architecture-standard]]"
+  - "[[sync-manifest-json-to-brief]]"
 related:
   - "[[software-development-opensource]]"
   - "[[documentation-markdown-architecture]]"
@@ -27,11 +28,14 @@ cons:
 # Master Documentation Update & Staged Commit Message Protocol (`update-readme-and-guide-and-what-commit-message-donot-commit-yet`)
 
 > [!IMPORTANT]
-> **THE THREE-WAY RELEASE INVARIANT**:
+> **THE THREE-WAY RELEASE INVARIANT (WITH MANIFEST AUDIT)**:
 > No functional, architectural, or UI refactoring is considered complete until:
+> 0. **Package / Manifest JSON** (`package.json`, `manifest.json`) version and packaging script targets are synchronized with the architectural brief milestone (`brief/vXX-XX-XX_<name>.md`) per `[[sync-manifest-json-to-brief]]`.
 > 1. **README.md** reflects the current high-level capabilities, table of contents, and architectural topology.
 > 2. **GUIDE.md** provides precise operational CLI syntax, parameter tables, interaction modes, and edge-case troubleshooting.
-> 3. **The Commit Message** is formulated according to canonical convention (`vxx-xx-xx context(ngapain): catatan`) and quarantined in the working tree under the **DO NOT COMMIT YET** invariant for sovereign human approval.
+> 3. **The Commit Message** is formulated according to canonical convention (`vxx-xx-xx context(ngapain): catatan`) matching the brief milestone version, and quarantined in the working tree under the **DO NOT COMMIT YET** invariant for sovereign human approval.
+>
+> *(For projects with automated multi-tier manifest validation, see the full 4-tier combo: `[[update-json-readme-and-guide-and-what-commit-message-donot-commit-yet]]`).*
 
 ---
 

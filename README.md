@@ -83,36 +83,60 @@ Menjadi fondasi standar alat bantu pengembang (*developer toolchain*) yang mandi
 
 ## 5. The 5 Contexts Architecture
 
-Seluruh aset eksekusi dalam `all-lads-tool/script/` dikelompokkan secara ketat ke dalam **5 Domain Contexts**:
+Seluruh aset eksekusi dalam `all-lads-tool/script/` dikelompokkan secara ketat ke dalam **5 Domain Contexts** dengan topologi 1:1 antara script dan dokumentasi (mengikuti `brief/v01-03-02`):
 
 ```text
 all-lads-tool
 	brief
-	skill
+		v01-00_main-idea.md
+		v01-01_foldering-structure.md
+		v01-02_foldering-structure.md
+		v01-03_foldering-structure.md
+		v01-03-02_foldering-structure-updated-stricly-no-markdown-in-script-and-docs-file-name-per-script.md
 	docs
-	script
-		blender
-			fbx-export.py
-			modules
-				check.py
-		unity
-			asset-importer.cs
-			modules
-				check.cs
 		repo
-			git-manage.ps1
-			git-branch-rename.ps1
-			modules
-				check.psm1
+			git-manage.md          <--- 1:1 match for script/repo/git-manage.ps1
+			git-branch-rename.md   <--- 1:1 match for script/repo/git-branch-rename.ps1
+		file
+			batch-target-dir-rename.md
+			csv-to-frontmatter.md
+			detector-clipboard-4-mode.md <--- 1:1 match for script/file/detector-clipboard-4-mode.ps1
+			dry-run.md
+			file-merge-into-one.md
+			file-one-to-multiple-files.md
+		blender
+			fbx-export.md
+		unity
+			asset-importer.md
 		website
-			build-bundles.js
-			modules
-				check.js
+			build-bundles.md
+	script
+		repo
+			git-manage.ps1         <--- Executable
+			git-branch-rename.ps1  <--- Executable
+			adapter
+				v02-30-00.psm1     <--- LTS Version Adapter
+				v02-40-00.psm1     <--- Modern Version Adapter
 		file
 			csv-to-frontmatter.ps1
+			detector-clipboard-4-mode.ps1  <--- Executable (4-Mode Clipboard & Git Protocol Suite)
+			detector-clipboard-4-mode.json <--- Atomic persistence store
 			dry-run.ps1
-			modules
-				check.psm1
+			batch-target-dir-rename.ps1
+			file-merge-into-one.ps1
+			file-one-to-multiple-files.ps1
+			adapter/
+		blender
+			fbx-export.py
+			adapter/
+		unity
+			asset-importer.cs
+			adapter/
+		website
+			build-bundles.js
+			adapter/
+	skill/
+	combo/
 	_run.ps1
 	_run.env
 	_run.env.example
@@ -126,9 +150,9 @@ all-lads-tool
 ### 🏛️ Ringkasan 5 Domain Contexts:
 1. **`blender/` (3D & Modeling Pipeline)**: Otomasi mesh cleaning, FBX/glTF batch export, dan material baking via Blender Python API.
 2. **`unity/` (Game Engine & Editor Tools)**: C# Editor utilities, asset post-processors, meta-file cleaners, dan build triggers.
-3. **`repo/` (Git & Repository Orchestration)**: Universal Git Manager, branch renamer, commit size inspector, submodule orchestrator, dan reflog recovery.
+3. **`repo/` (Git & Repository Orchestration)**: Universal Git Manager (`git-manage.ps1`) dilengkapi Git Clone Wizard interaktif (HTTPS, SSH, GitHub CLI, owner/repo slug) dengan pre-flight briefed overview card, auto-detection URL clipboard, dan konfirmasi eksplisit `[y/N]`; branch renamer; submodule orchestrator; dan reflog recovery.
 4. **`website/` (Web Architecture & Frontend)**: Bundling ES module, SCSS/CSS compiler, DOM accessibility validator, dan Playwright snapshot engine.
-5. **`file/` (File & Data Transformation)**: Universal 4-Mode Clipboard Suite (`PolyClip`) dengan Unified 5-Column Architecture, Bidirectional CSV $\leftrightarrow$ YAML Frontmatter bridge, pemecah/penggabung file (`file-merge` / `file-split`), dan PowerShell dry-run simulation engine.
+5. **`file/` (File & Data Transformation)**: Universal 4-Mode Clipboard Suite (`PolyClip` / `detector-clipboard-4-mode.ps1`) dengan Unified 5-Column Architecture, Git Multi-Protocol Widget (`[ HTTPS | SSH | GitHub CLI ]`), integrasi native clipboard VS Code Explorer (`text/uri-list`, `FileNameW`), Bidirectional CSV $\leftrightarrow$ YAML Frontmatter bridge, pemecah/penggabung file (`file-merge` / `file-split`), dan PowerShell dry-run simulation engine.
 
 ---
 
@@ -161,6 +185,9 @@ all-lads-tool
    # Jalankan tool konversi CSV ke Frontmatter
    .\script\file\csv-to-frontmatter.ps1 -TargetDir "vault/notes" -TargetCsv "data.csv"
    
+   # Jalankan Git Manager interaktif (dengan Git Clone Wizard & clipboard auto-detect)
+   .\script\repo\git-manage.ps1
+
    # Jalankan simulasi Dry-Run pada skrip apapun
    .\script\file\dry-run.ps1 -ScriptPath ".\script\repo\git-branch-rename.ps1"
    ```

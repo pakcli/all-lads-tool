@@ -11,7 +11,7 @@ if (-not $global:PolyClipHistory) {
 }
 
 $script:ExecutorBaseName = "detector-clipboard-4-mode"
-$baseDir = if ($PSScriptRoot) { $PSScriptRoot } else { "E:\proj\all-lads-tool\script\file\adapter" }
+$baseDir = if ($PSScriptRoot) { $PSScriptRoot } else { (Get-Location).Path }
 $parentDir = Split-Path $baseDir -Parent
 $script:OptionsFile = if (Test-Path (Join-Path $parentDir "$($script:ExecutorBaseName).json")) {
     Join-Path $parentDir "$($script:ExecutorBaseName).json"
@@ -36,8 +36,6 @@ function Unwrap-Mode1Text {
 function Load-PersistentHistory {
     $fileToRead = if (Test-Path -LiteralPath $script:OptionsFile) {
         $script:OptionsFile
-    } elseif (Test-Path "E:\proj\all-lads-tool\script\file\detector-clipboard-4-mode.json") {
-        "E:\proj\all-lads-tool\script\file\detector-clipboard-4-mode.json"
     } else {
         $null
     }

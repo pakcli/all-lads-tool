@@ -26,7 +26,7 @@ PolyClip dirancang sebagai pengelola clipboard desktop berkecepatan tinggi tanpa
 +-------------------------------------------------------------------------------------------------------------------+
 |   i   | 1. PLAIN TEXT    | 2. FILE PATH (Selectable)   | 3. CONTENT (Preview) | 4. EXACT FILE (Reveal) | ACTIONS  |
 +-------+------------------+-----------------------------+----------------------+------------------------+----------+
-|  [i]  | my-script.ps1... | E:\proj\script\file  [📋][.] | function Start { ... | my-script.ps1 [📋] 34KB | [Ed][Dp][X]
+|  [i]  | my-script.ps1... | <workspace_root>\script\file [📋][.] | function Start { ... | my-script.ps1 [📋] 34KB | [Ed][Dp][X]
 +-------------------------------------------------------------------------------------------------------------------+
 ```
 
@@ -40,13 +40,13 @@ Untuk mempercepat identifikasi lokasi file secara visual tanpa harus membaca sel
 | :--- | :--- | :--- | :--- |
 | **`C:`** | **Merah (System / "Fistem")** | `#F87171` (Red-400) | Partisi Windows/OS, `System32`, `AppData`, `Program Files`, atau area sistem krusial yang memerlukan kehati-hatian tinggi. |
 | **`D:`** | **Biru (Data Secondary)** | `#38BDF8` (Sky-400) | Partisi penyimpanan data sekunder, installer, media, atau arsip umum. |
-| **`E:` atau lebih tinggi** (`E:`, `F:`, `G:`, `H:`, ...) | **Hijau (Projects / Workspace)** | `#34D399` (Emerald-400) | Workspace pengembangan proyek (`E:\proj\...`), repositori aktif, flashdisk/eksternal, atau folder kerja utama. |
+| **`E:` atau lebih tinggi** (`E:`, `F:`, `G:`, `H:`, ...) | **Hijau (Projects / Workspace)** | `#34D399` (Emerald-400) | Workspace pengembangan proyek (`E:\workspace\...`), repositori aktif, flashdisk/eksternal, atau folder kerja utama. |
 | **UNC / Network / Lainnya** (`\\server\...`) | **Indigo** | `#818CF8` (Indigo-400) | Network share, path relatif, atau virtual drive non-standar. |
 
 ### Contoh Representasi Nyata:
 * `C:\Windows\System32\cmd.exe` &rarr; Teks ditampilkan dengan warna **Merah**.
 * `D:\backup\archive-2026.zip` &rarr; Teks ditampilkan dengan warna **Biru**.
-* `E:\proj\all-lads-tool\script\file` &rarr; Teks ditampilkan dengan warna **Hijau**.
+* `E:\workspace\project\script\file` &rarr; Teks ditampilkan dengan warna **Hijau**.
 
 ---
 
@@ -128,7 +128,7 @@ Saat tombol **`[Copy]`** ditekan:
 
 ## 6. Persistensi Sesuai Standar Skill
 
-Mengikuti skill [`save-option-as-exact-executor-name-json`](file:///E:/proj/all-lads-tool/skill/save-option-as-exact-executor-name-json.md):
+Mengikuti skill [`save-option-as-exact-executor-name-json`](file:///<workspace_root>/skill/save-option-as-exact-executor-name-json.md):
 * Data riwayat disimpan secara atomik pada file JSON yang persis dengan nama executor:
   `script/file/detector-clipboard-4-mode.json`
 * State toggle **`Show All`** (berada di samping tombol `Refresh`) persisten selama sesi panel aktif.
@@ -137,7 +137,7 @@ Mengikuti skill [`save-option-as-exact-executor-name-json`](file:///E:/proj/all-
 
 ## 7. Dekonstruksi Modular Flat (Anti-Generic Core-Engine Protocol)
 
-Sesuai dengan standar arsitektur dan skill [`anti-generic-core-engine-naming`](file:///E:/proj/all-lads-tool/skill/anti-generic-core-engine-naming.md), adapter `detector-clipboard-4-mode.psm1` didekonstruksi menjadi **7 submodul `.psm1` flat** langsung di dalam direktori `script/file/adapter/` tanpa subfolder bersarang:
+Sesuai dengan standar arsitektur dan skill [`anti-generic-core-engine-naming`](file:///<workspace_root>/skill/anti-generic-core-engine-naming.md), adapter `detector-clipboard-4-mode.psm1` didekonstruksi menjadi **7 submodul `.psm1` flat** langsung di dalam direktori `script/file/adapter/` tanpa subfolder bersarang:
 
 ```
 script/file/
@@ -155,3 +155,23 @@ script/file/
 ```
 
 Arsitektur flat `.psm1` ini memastikan setiap berkas merupakan modul PowerShell resmi (*first-class module*) yang dapat diimpor secara modular, mudah diuji secara independen, dan konsisten dengan foldering structure adapter tools lainnya.
+
+---
+
+## 8. Git Multi-Protocol Widget (HTTPS, SSH, GitHub CLI)
+
+Ketika clipboard mendeteksi URL atau perintah kloning Git (misalnya `https://github.com/owner/repo`, `git@github.com:...`, `gh repo clone ...`, atau `owner/repo`), antarmuka secara otomatis beralih ke widget Git Multi-Protocol:
+
+```text
++-------------------------------------------------------------------------------------------------------------------+
+|   i   | GIT PROTOCOL WIDGET (Tabs + Selectable Box) | REPO SLUG (Col 2)          | ACTION                          |
++-------+---------------------------------------------+----------------------------+---------------------------------+
+|  [i]  | [HTTPS] [SSH] [GitHub CLI] [url...   ] [📋] | github.com/owner/repo      | [Copy] [Del]                    |
++-------------------------------------------------------------------------------------------------------------------+
+```
+
+- **Pill Tabs**: Tombol `[HTTPS]`, `[SSH]`, dan `[GitHub CLI]` memungkinkan pengalihan instan antar format URL kloning.
+- **Selectable URL Box**: Memungkinkan seleksi sebagian teks atau melihat URL lengkap.
+- **Dedicated Copy Button (`[📋]`)**: Menyalin format yang sedang aktif ke clipboard Windows.
+- **Interoperabilitas dengan `git-manage.ps1`**: URL kloning yang tersalin di clipboard secara otomatis dideteksi dan dijadikan default input saat menjalankan wizard kloning pada `script/repo/git-manage.ps1`.
+

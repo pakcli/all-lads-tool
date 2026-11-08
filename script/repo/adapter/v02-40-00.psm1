@@ -38,4 +38,29 @@ function Invoke-GitBranchRename {
     }
 }
 
-Export-ModuleMember -Function Test-GitEnvironment, Invoke-GitStatus, Invoke-GitBranchRename
+function Invoke-GitClone {
+    param(
+        [Parameter(Mandatory)] [string]$Url,
+        [Parameter(Mandatory)] [string]$DestinationPath,
+        [string]$Branch = "",
+        [int]$Depth = 0
+    )
+    $argsList = [System.Collections.Generic.List[string]]::new()
+    $argsList.Add("clone")
+    if ($Branch) {
+        $argsList.Add("--branch")
+        $argsList.Add($Branch)
+    }
+    if ($Depth -gt 0) {
+        $argsList.Add("--depth")
+        $argsList.Add("$Depth")
+    }
+    $argsList.Add($Url)
+    $argsList.Add($DestinationPath)
+
+    Write-Host "[ADAPTER v02-40-00] Executing: git $($argsList -join ' ')" -ForegroundColor DarkCyan
+    & git @argsList
+    return ($LASTEXITCODE -eq 0)
+}
+
+Export-ModuleMember -Function Test-GitEnvironment, Invoke-GitStatus, Invoke-GitBranchRename, Invoke-GitClone

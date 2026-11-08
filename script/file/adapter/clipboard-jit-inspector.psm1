@@ -79,51 +79,294 @@ function Clean-PlainText {
     return $t
 }
 
+function Convert-ToGitRepoInfo {
+    param ([string]$Raw)
+    if ([string]::IsNullOrWhiteSpace($Raw)) { return $null }
+
+    $val = Clean-PlainText $Raw
+
+    # Strip command prefixes if present
+    if ($val -match 'gh\s+repo\s+clone\s+(?<repo>\S+)') {
+        $val = $Matches['repo'].Trim()
+    } elseif ($val -match 'git\s+clone\s+(?<url>\S+)') {
+        $val = $Matches['url'].Trim()
+    }
+
+    $owner = $null
+    $repo = $null
+    $host = "github.com"
+
+    # HTTPS format: https://github.com/owner/repo(.git)? or http://
+    if ($val -match '^https?:\/\/(?<host>[^\/]+)\/(?<owner>[^\/]+)\/(?<repo>[^\/\s\?#]+?)(\.git)?(\/)?$') {
+        $host = $Matches['host']
+        $owner = $Matches['owner']
+        $repo = $Matches['repo']
+    }
+    # SSH format: git@github.com:owner/repo(.git)?
+    elseif ($val -match '^git@(?<host>[^:]+):(?<owner>[^\/]+)\/(?<repo>[^\/\s\?#]+?)(\.git)?(\/)?$') {
+        $host = $Matches['host']
+        $owner = $Matches['owner']
+        $repo = $Matches['repo']
+    }
+    # Short slug format: owner/repo (e.g. pakcli/absolute-home-inventory)
+    elseif ($val -match '^(?<owner>[a-zA-Z0-9_\-\.]+)\/(?<repo>[a-zA-Z0-9_\-\.]+)$' -and $val -notmatch '^[a-zA-Z]:') {
+        $owner = $Matches['owner']
+        $repo = $Matches['repo']
+    }
+
+    if ($owner -and $repo) {
+        $repoClean = $repo -replace '\.git$', ''
+        $slug = "$owner/$repoClean"
+        $httpsUrl = "https://$host/$slug.git"
+        $sshUrl = "git@$host`:$slug.git"
+        $ghCli = "gh repo clone $slug"
+        $cloneCmd = "git clone $httpsUrl"
+
+        return [PSCustomObject]@{
+            IsGitRepo = $true
+            Host      = $host
+            Owner     = $owner
+            Repo      = $repoClean
+            Slug      = $slug
+            HttpsUrl  = $httpsUrl
+            SshUrl    = $sshUrl
+            GhCli     = $ghCli
+            CloneCmd  = $cloneCmd
+        }
+    }
+    return $null
+}
+
+function Convert-ToNativePath {
+    param ([string]$Raw)
+    if ([string]::IsNullOrWhiteSpace($Raw)) { return $null }
+
+    $val = $Raw.Trim()
+
+    # 1. Unquote if wrapped in quotes
+    if (($val.StartsWith('"') -and $val.EndsWith('"')) -or ($val.StartsWith("'") -and $val.EndsWith("'"))) {
+        if ($val.Length -ge 2) {
+            $val = $val.Substring(1, $val.Length - 2).Trim()
+        }
+    }
+
+    # 2. Advance Path format: (file;file:///e%3A/proj/...)
+    if ($val -match '^\(file;file:\/\/\/?(?<inner>.+?)\)$') {
+        $val = "file:///" + $Matches['inner']
+    }
+
+    # 3. URI format: file:///... or file://...
+    if ($val -match '^file:\/\/\/?(?<uriPath>.+)$') {
+        $uPath = $Matches['uriPath']
+        $uPath = [System.Text.RegularExpressions.Regex]::Replace($uPath, '(?i)%3A', ':')
+        try {
+            $uPath = [System.Uri]::UnescapeDataString($uPath)
+        } catch {}
+        if ($uPath -match '^\/([a-zA-Z]:.*)$') {
+            $uPath = $Matches[1]
+        }
+        $val = $uPath
+    }
+
+    # Normalize forward slashes to Windows backslashes
+    $norm = $val.Replace('/', '\')
+
+    # 4. Check absolute path
+    if ($norm -match '^[a-zA-Z]:\\|^\\\\') {
+        if (Test-Path -LiteralPath $norm) {
+            return (Resolve-Path -LiteralPath $norm).Path
+        }
+    }
+
+    # 5. Check relative path against current directory and workspace root
+    $candidateBases = @(
+        (Get-Location).Path,
+        $PSScriptRoot,
+        (Split-Path -Parent $PSScriptRoot),
+        (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)),
+        (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)))
+    ) | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -Unique
+
+    foreach ($base in $candidateBases) {
+        if ($base -and (Test-Path -LiteralPath $base)) {
+            $combined = Join-Path $base $norm
+            if (Test-Path -LiteralPath $combined) {
+                return (Resolve-Path -LiteralPath $combined).Path
+            }
+        }
+    }
+
+    return $null
+}
+
+function Extract-PathsFromDataObject {
+    param ($DataObject)
+    $detected = @()
+    if ($null -eq $DataObject) { return $detected }
+
+    # 1. Standard FileDrop (CF_HDROP)
+    try {
+        if ($DataObject.GetDataPresent([System.Windows.Forms.DataFormats]::FileDrop)) {
+            $files = $DataObject.GetData([System.Windows.Forms.DataFormats]::FileDrop)
+            if ($files) {
+                foreach ($f in $files) {
+                    $p = Convert-ToNativePath ([string]$f)
+                    if ($p -and $p -notin $detected) { $detected += $p }
+                }
+            }
+        }
+    } catch {}
+
+    # 2. Windows Shell FileNameW / FileName
+    if ($detected.Count -eq 0) {
+        try {
+            if ($DataObject.GetDataPresent("FileNameW")) {
+                $fn = $DataObject.GetData("FileNameW")
+                if ($fn) {
+                    $p = Convert-ToNativePath ([string]$fn)
+                    if ($p -and $p -notin $detected) { $detected += $p }
+                }
+            } elseif ($DataObject.GetDataPresent("FileName")) {
+                $fn = $DataObject.GetData("FileName")
+                if ($fn) {
+                    $p = Convert-ToNativePath ([string]$fn)
+                    if ($p -and $p -notin $detected) { $detected += $p }
+                }
+            }
+        } catch {}
+    }
+
+    # 3. text/uri-list (Electron & VS Code standard)
+    if ($detected.Count -eq 0) {
+        try {
+            if ($DataObject.GetDataPresent("text/uri-list")) {
+                $uriData = $DataObject.GetData("text/uri-list")
+                if ($uriData) {
+                    $lines = [string]$uriData -split "`r?`n"
+                    foreach ($l in $lines) {
+                        if (-not [string]::IsNullOrWhiteSpace($l) -and -not $l.StartsWith("#")) {
+                            $p = Convert-ToNativePath $l
+                            if ($p -and $p -notin $detected) { $detected += $p }
+                        }
+                    }
+                }
+            }
+        } catch {}
+    }
+
+    # 4. Custom VS Code internal buffer formats (code/resources, NativeClipboardService.FILE_FORMAT)
+    if ($detected.Count -eq 0) {
+        try {
+            $formats = $DataObject.GetFormats()
+            foreach ($fmt in $formats) {
+                if ($fmt -like "*code*" -or $fmt -like "*resource*" -or $fmt -like "*file*" -or $fmt -like "*uri*") {
+                    $rawFmt = $DataObject.GetData($fmt)
+                    if ($rawFmt) {
+                        $str = if ($rawFmt -is [string]) { $rawFmt }
+                               elseif ($rawFmt -is [System.IO.MemoryStream]) {
+                                   (New-Object System.IO.StreamReader($rawFmt)).ReadToEnd()
+                               } elseif ($rawFmt -is [byte[]]) {
+                                   [System.Text.Encoding]::UTF8.GetString($rawFmt)
+                               } else { $null }
+                        if ($str) {
+                            $matches = [System.Text.RegularExpressions.Regex]::Matches($str, '(file:\/\/\/[^\s"\''\<\>\)]+|[a-zA-Z]:\\[^\s"\''\<\>\r\n]+|[a-zA-Z]:\/[^\s"\''\<\>\r\n]+)')
+                            foreach ($m in $matches) {
+                                $p = Convert-ToNativePath $m.Value
+                                if ($p -and $p -notin $detected) { $detected += $p }
+                            }
+                        }
+                    }
+                }
+            }
+        } catch {}
+    }
+
+    return $detected
+}
+
 function Get-ClipboardSnapshot {
     $rawType = "UNKNOWN"
     $rawText = $null
     $fileDropList = $null
     $detectedPath = $null
 
+    # Phase 1: Deep inspection of DataObject (CF_HDROP, FileNameW, text/uri-list, VS Code code/resources)
     try {
-        if ([System.Windows.Forms.Clipboard]::ContainsFileDropList()) {
-            $fileDropList = [System.Windows.Forms.Clipboard]::GetFileDropList()
-            if ($fileDropList -and $fileDropList.Count -gt 0) {
+        $dataObj = [System.Windows.Forms.Clipboard]::GetDataObject()
+        if ($dataObj) {
+            $paths = Extract-PathsFromDataObject -DataObject $dataObj
+            if ($paths -and $paths.Count -gt 0) {
                 $rawType = "CF_HDROP"
-                $detectedPath = $fileDropList[0]
+                $detectedPath = $paths[0]
             }
         }
     } catch {}
 
+    # Phase 2: Direct WinForms FileDropList fallback
     if (-not $detectedPath) {
         try {
-            if ([System.Windows.Forms.Clipboard]::ContainsText()) {
-                $rawInput = [System.Windows.Forms.Clipboard]::GetText()
-                if (-not [string]::IsNullOrWhiteSpace($rawInput)) {
-                    $rawType = "TEXT"
-                    $rawText = Clean-PlainText $rawInput
+            if ([System.Windows.Forms.Clipboard]::ContainsFileDropList()) {
+                $fileDropList = [System.Windows.Forms.Clipboard]::GetFileDropList()
+                if ($fileDropList -and $fileDropList.Count -gt 0) {
+                    $rawType = "CF_HDROP"
+                    $detectedPath = $fileDropList[0]
                 }
             }
         } catch {}
     }
 
-    if ($rawType -eq "TEXT" -and $rawText) {
-        $cleaned = $rawText.Trim().Trim('"').Trim("'")
-        if ($cleaned -match '^[a-zA-Z]:\\|^\\\\') {
-            if (Test-Path -LiteralPath $cleaned) {
-                $detectedPath = (Resolve-Path -LiteralPath $cleaned).Path
+    # Phase 3: Text inspection (handles VS Code Copy Path, Copy Relative Path, Advance Path, quoted paths)
+    try {
+        if ([System.Windows.Forms.Clipboard]::ContainsText()) {
+            $rawInput = [System.Windows.Forms.Clipboard]::GetText()
+            if (-not [string]::IsNullOrWhiteSpace($rawInput)) {
+                $cleanedText = Clean-PlainText $rawInput
+                if (-not [string]::IsNullOrWhiteSpace($cleanedText)) {
+                    $rawText = $cleanedText
+                    if ($rawType -eq "UNKNOWN") {
+                        $rawType = "TEXT"
+                    }
+                    if (-not $detectedPath) {
+                        # Check if text is a single path or multiline paths
+                        $lines = $rawText -split "`r?`n" | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+                        foreach ($line in $lines) {
+                            $resolved = Convert-ToNativePath $line
+                            if ($resolved) {
+                                $detectedPath = $resolved
+                                $rawType = "CF_HDROP"
+                                break
+                            }
+                        }
+                    }
+                }
             }
         }
-    }
+    } catch {}
 
     $fileName = "-"
     $fileSizeStr = "-"
     $isOpenable = $false
     $openStatus = "UNREADABLE"
-    $mode1 = if ($rawText) { $rawText } elseif ($detectedPath) { $detectedPath } else { "" }
-    $mode2 = if ($detectedPath) { $detectedPath } else { "" }
-    $mode3 = ""
-    $mode4 = if ($detectedPath) { $detectedPath } else { "" }
+
+    # Git Repository URL Detection (mirrors GitHub clone widget: HTTPS, SSH, GitHub CLI)
+    $gitInfo = if ($rawText) { Convert-ToGitRepoInfo $rawText } else { $null }
+
+    if ($gitInfo) {
+        $rawType = "GIT_REPO"
+        $fileName = "$($gitInfo.Slug) (GitHub)"
+        $fileSizeStr = "<GIT>"
+        $isOpenable = $true
+        $openStatus = "GIT_REPO"
+        $mode1 = $gitInfo.HttpsUrl
+        $mode2 = $gitInfo.SshUrl
+        $mode3 = $gitInfo.GhCli
+        $mode4 = $gitInfo.CloneCmd
+    } else {
+        $mode1 = if ($rawText) { $rawText } elseif ($detectedPath) { (Split-Path $detectedPath -Leaf) } else { "" }
+        $mode2 = if ($detectedPath) { $detectedPath } else { "" }
+        $mode3 = ""
+        $mode4 = if ($detectedPath) { $detectedPath } else { "" }
+    }
 
     if ($detectedPath -and (Test-Path -LiteralPath $detectedPath)) {
         try {
@@ -143,9 +386,12 @@ function Get-ClipboardSnapshot {
                 } else {
                     $openStatus = "BINARY"
                 }
-            } else {
+            } elseif ($item -is [System.IO.DirectoryInfo]) {
                 $fileName = $item.Name
+                $fileSizeStr = "<DIR>"
+                $isOpenable = $true
                 $openStatus = "DIRECTORY"
+                $mode3 = "[Directory] " + $item.FullName
             }
         } catch {
             $openStatus = "ACCESS_ERROR"
@@ -165,6 +411,14 @@ function Get-ClipboardSnapshot {
         Mode2_Path    = $mode2
         Mode3_Content = $mode3
         Mode4_File    = $mode4
+        IsGitRepo     = ($null -ne $gitInfo)
+        GitOwner      = if ($gitInfo) { $gitInfo.Owner } else { "" }
+        GitRepo       = if ($gitInfo) { $gitInfo.Repo } else { "" }
+        GitSlug       = if ($gitInfo) { $gitInfo.Slug } else { "" }
+        GitHttpsUrl   = if ($gitInfo) { $gitInfo.HttpsUrl } else { "" }
+        GitSshUrl     = if ($gitInfo) { $gitInfo.SshUrl } else { "" }
+        GitGhCli      = if ($gitInfo) { $gitInfo.GhCli } else { "" }
+        GitCloneCmd   = if ($gitInfo) { $gitInfo.CloneCmd } else { "" }
     }
 
     # Tracking & Deduplication (Prevents runaway feedback loops)

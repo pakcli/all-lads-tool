@@ -461,6 +461,129 @@ function Update-ToggleVisual {
     }
 }
 
+function New-GitProtocolCell {
+    param ($SnapshotItem)
+
+    $bdr = [System.Windows.Controls.Border]::new()
+    $bdr.Height = 26
+    $bdr.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#0D1117")
+    $bdr.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#30363D")
+    $bdr.BorderThickness = [System.Windows.Thickness]::new(1)
+    $bdr.CornerRadius = [System.Windows.CornerRadius]::new(4)
+    $bdr.Margin = [System.Windows.Thickness]::new(2)
+
+    $grid = [System.Windows.Controls.Grid]::new()
+
+    # Col 0: Tabs [HTTPS | SSH | GitHub CLI]
+    $colTabs = [System.Windows.Controls.ColumnDefinition]::new()
+    $colTabs.Width = [System.Windows.GridLength]::Auto
+    $grid.ColumnDefinitions.Add($colTabs)
+
+    # Col 1: Selectable TextBox
+    $colBox = [System.Windows.Controls.ColumnDefinition]::new()
+    $colBox.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
+    $grid.ColumnDefinitions.Add($colBox)
+
+    # Col 2: Copy Button
+    $colCopy = [System.Windows.Controls.ColumnDefinition]::new()
+    $colCopy.Width = [System.Windows.GridLength]::Auto
+    $grid.ColumnDefinitions.Add($colCopy)
+
+    # Tab Container StackPanel
+    $spTabs = [System.Windows.Controls.StackPanel]::new()
+    $spTabs.Orientation = [System.Windows.Controls.Orientation]::Horizontal
+    $spTabs.Margin = [System.Windows.Thickness]::new(2, 1, 4, 1)
+
+    $tbBox = [System.Windows.Controls.TextBox]::new()
+    $tbBox.Text = [string]$SnapshotItem.GitHttpsUrl
+    $tbBox.IsReadOnly = $true
+    $tbBox.Background = [System.Windows.Media.Brushes]::Transparent
+    $tbBox.BorderThickness = [System.Windows.Thickness]::new(0)
+    $tbBox.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#58A6FF")
+    $tbBox.FontFamily = [System.Windows.Media.FontFamily]::new("Consolas, Segoe UI")
+    $tbBox.FontSize = 10
+    $tbBox.VerticalAlignment = [System.Windows.VerticalAlignment]::Center
+    $tbBox.Padding = [System.Windows.Thickness]::new(4, 1, 4, 1)
+    $tbBox.ToolTip = "Git Clone URL (Drag cursor to highlight, or click copy button)"
+
+    # Helper to style tab buttons
+    $tabBtns = @()
+    $tabs = @(
+        @{ Label = "HTTPS"; Value = $SnapshotItem.GitHttpsUrl; Mode = 1 },
+        @{ Label = "SSH"; Value = $SnapshotItem.GitSshUrl; Mode = 2 },
+        @{ Label = "GitHub CLI"; Value = $SnapshotItem.GitGhCli; Mode = 3 }
+    )
+
+    foreach ($t in $tabs) {
+        $btn = [System.Windows.Controls.Button]::new()
+        $btn.Content = $t.Label
+        $btn.FontSize = 9
+        $btn.FontWeight = [System.Windows.FontWeights]::SemiBold
+        $btn.Padding = [System.Windows.Thickness]::new(5, 1, 5, 1)
+        $btn.Margin = [System.Windows.Thickness]::new(1, 0, 1, 0)
+        $btn.Height = 20
+        $btn.Background = if ($t.Label -eq "HTTPS") { [System.Windows.Media.BrushConverter]::new().ConvertFromString("#1F242C") } else { [System.Windows.Media.BrushConverter]::new().ConvertFromString("#161B22") }
+        $btn.Foreground = if ($t.Label -eq "HTTPS") { [System.Windows.Media.BrushConverter]::new().ConvertFromString("#58A6FF") } else { [System.Windows.Media.BrushConverter]::new().ConvertFromString("#8B949E") }
+        $btn.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#30363D")
+        $btn.BorderThickness = [System.Windows.Thickness]::new(1)
+        $btn.Tag = @{ Value = $t.Value; Mode = $t.Mode; Label = $t.Label }
+
+        $btn.Add_Click({
+            param($s, $e)
+            $senderObj = if ($s) { $s } else { $this }
+            $val = $senderObj.Tag.Value
+            $lbl = $senderObj.Tag.Label
+            $tbBox.Text = $val
+            try { Set-Clipboard -Value $val } catch { [System.Windows.Forms.Clipboard]::SetText($val) }
+            Set-PanelStatus "Switched to $lbl & copied: $val"
+
+            foreach ($b in $tabBtns) {
+                if ($b.Tag.Label -eq $lbl) {
+                    $b.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#1F242C")
+                    $b.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#58A6FF")
+                } else {
+                    $b.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#161B22")
+                    $b.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#8B949E")
+                }
+            }
+        }.GetNewClosure())
+
+        $tabBtns += $btn
+        $spTabs.Children.Add($btn) | Out-Null
+    }
+
+    [System.Windows.Controls.Grid]::SetColumn($spTabs, 0)
+    $grid.Children.Add($spTabs) | Out-Null
+
+    [System.Windows.Controls.Grid]::SetColumn($tbBox, 1)
+    $grid.Children.Add($tbBox) | Out-Null
+
+    # Copy Button
+    $btnCopy = [System.Windows.Controls.Button]::new()
+    $btnCopy.Content = [System.Char]::ConvertFromUtf32(0x1F4CB)
+    $btnCopy.FontFamily = [System.Windows.Media.FontFamily]::new("Segoe UI Emoji, Segoe UI Symbol")
+    $btnCopy.FontSize = 10
+    $btnCopy.Width = 24
+    $btnCopy.Height = 20
+    $btnCopy.Margin = [System.Windows.Thickness]::new(2, 1, 2, 1)
+    $btnCopy.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#21262D")
+    $btnCopy.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#58A6FF")
+    $btnCopy.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#30363D")
+    $btnCopy.ToolTip = "Copy current Git URL / command to Clipboard"
+    $btnCopy.Add_Click({
+        param($s, $e)
+        $val = $tbBox.Text
+        try { Set-Clipboard -Value $val } catch { [System.Windows.Forms.Clipboard]::SetText($val) }
+        Set-PanelStatus "Copied Git Clone URL: $val"
+    }.GetNewClosure())
+
+    [System.Windows.Controls.Grid]::SetColumn($btnCopy, 2)
+    $grid.Children.Add($btnCopy) | Out-Null
+
+    $bdr.Child = $grid
+    return $bdr
+}
+
 function Add-RowCard {
     param ($item, [int]$rowIdx)
 
@@ -530,8 +653,12 @@ function Add-RowCard {
     [System.Windows.Controls.Grid]::SetColumn($bInfo, 0)
     $grid.Children.Add($bInfo) | Out-Null
 
-    # 1. UNIFIED CONTENT CELL (Text payload or File Code preview)
-    if ($item.IsOpenable -and $item.Mode3_Content) {
+    # 1. UNIFIED CONTENT CELL (Git Protocol Widget, Text payload, or File Code preview)
+    if ($item.IsGitRepo) {
+        $contentCell = New-GitProtocolCell -SnapshotItem $item
+        [System.Windows.Controls.Grid]::SetColumn($contentCell, 1)
+        $grid.Children.Add($contentCell) | Out-Null
+    } elseif ($item.IsOpenable -and $item.Mode3_Content) {
         $preview15 = Get-First15Chars -Content $item.Mode3_Content
         $contentCell = New-ExpandableCell -FullText [string]$item.Mode3_Content -DisplayText $preview15 -TargetMode 3 -SnapshotItem $item -BgHex "#062E23" -FgHex "#34D399" -BorderHex "#065F46" -TypeBadge "FILE"
         [System.Windows.Controls.Grid]::SetColumn($contentCell, 1)

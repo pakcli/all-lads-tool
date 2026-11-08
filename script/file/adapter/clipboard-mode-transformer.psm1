@@ -23,6 +23,12 @@ function Invoke-ApplyMode {
 
     switch ($TargetMode) {
         1 {
+            if ($Snapshot.IsGitRepo -and $Snapshot.GitHttpsUrl) {
+                $val = [string]$Snapshot.GitHttpsUrl
+                $global:PolyClipLastRawText = $val
+                try { Set-Clipboard -Value $val } catch { [System.Windows.Forms.Clipboard]::SetText($val) }
+                return "Applied Mode 1 (Git HTTPS Clone URL: $val)"
+            }
             if ($Snapshot.Mode1_Text) {
                 $val = Clean-PlainText [string]$Snapshot.Mode1_Text
                 $global:PolyClipLastRawText = $val
@@ -31,6 +37,12 @@ function Invoke-ApplyMode {
             }
         }
         2 {
+            if ($Snapshot.IsGitRepo -and $Snapshot.GitSshUrl) {
+                $val = [string]$Snapshot.GitSshUrl
+                $global:PolyClipLastRawText = $val
+                try { Set-Clipboard -Value $val } catch { [System.Windows.Forms.Clipboard]::SetText($val) }
+                return "Applied Mode 2 (Git SSH Clone URL: $val)"
+            }
             if ($Snapshot.Mode2_Path -and (Test-Path -LiteralPath $Snapshot.Mode2_Path)) {
                 $val = [string]$Snapshot.Mode2_Path
                 $global:PolyClipLastRawText = $val
@@ -40,6 +52,12 @@ function Invoke-ApplyMode {
             return "Mode 2 Blocked: File no longer exists on disk."
         }
         3 {
+            if ($Snapshot.IsGitRepo -and $Snapshot.GitGhCli) {
+                $val = [string]$Snapshot.GitGhCli
+                $global:PolyClipLastRawText = $val
+                try { Set-Clipboard -Value $val } catch { [System.Windows.Forms.Clipboard]::SetText($val) }
+                return "Applied Mode 3 (GitHub CLI Clone Command: $val)"
+            }
             if ($Snapshot.IsOpenable -and $Snapshot.Mode3_Content) {
                 $val = if ($Snapshot.Mode3_Content -is [string]) { $Snapshot.Mode3_Content } elseif ($Snapshot.Mode3_Content.value) { [string]$Snapshot.Mode3_Content.value } else { [string]$Snapshot.Mode3_Content }
                 $global:PolyClipLastRawText = $val
@@ -49,6 +67,12 @@ function Invoke-ApplyMode {
             return "Mode 3 Blocked (? Binary or Unreadable)"
         }
         4 {
+            if ($Snapshot.IsGitRepo -and $Snapshot.GitCloneCmd) {
+                $val = [string]$Snapshot.GitCloneCmd
+                $global:PolyClipLastRawText = $val
+                try { Set-Clipboard -Value $val } catch { [System.Windows.Forms.Clipboard]::SetText($val) }
+                return "Applied Mode 4 (Git Clone CLI Command: $val)"
+            }
             if ($Snapshot.Mode4_File -and (Test-Path -LiteralPath $Snapshot.Mode4_File)) {
                 $sc = New-Object System.Collections.Specialized.StringCollection
                 $sc.Add([string]$Snapshot.Mode4_File) | Out-Null

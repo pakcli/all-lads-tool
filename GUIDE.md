@@ -89,11 +89,14 @@ Dijalankan langsung dari folder `all-lads-tool/`:
 ```
 Menyediakan antarmuka interaktif bernomor A-Z untuk seluruh alat otomasi dengan pencarian instan dan quick re-run (`0`).
 
-### Mode 3: Direct Standalone CLI (`_stand`)
-Setiap skrip berakhiran `_stand.<ext>` dapat dijalankan secara langsung tanpa bergantung pada launcher induk:
+### Mode 3: Direct Standalone CLI (`script/<context>/<tool>.<ext>`)
+Setiap skrip dapat dijalankan langsung secara mandiri tanpa bergantung pada launcher induk:
 ```powershell
 # Contoh menjalankan CSV to Frontmatter Converter
-.\script\file\csv-to-frontmatter_stand.ps1 -TargetDir "vault/notes" -TargetCsv "data.csv"
+.\script\file\csv-to-frontmatter.ps1 -TargetDir "vault/notes" -TargetCsv "data.csv"
+
+# Contoh menjalankan Git Manager
+.\script\repo\git-manage.ps1
 ```
 
 ---
@@ -142,6 +145,14 @@ Fokus pada konversi data, sanitasi format, manipulasi teks aman, dan manajemen c
   .\script\file\adapter\start-win-v-override.bat
   ```
 
+  **Dukungan Penuh VS Code Native Tree Explorer & Git Multi-Protocol**:
+  PolyClip secara otomatis mendeteksi semua operasi copy dari VS Code sidebar explorer dan URL repositori Git:
+  - **Copy (`Ctrl+C`)**: Mengekstrak file dari format native Electron (`text/uri-list`, `FileNameW`, dan stream `code/resources`).
+  - **Copy Path (`Shift+Alt+C`)**: Menangani path dengan garis miring forward slash dan path ber-tanda kutip ganda.
+  - **Copy Relative Path (`Ctrl+K Ctrl+Alt+C`)**: Meresolusi path relatif workspace menjadi canonical full path absolut secara instan.
+  - **Drag & Drop / Advance Path**: Mendekode format URI `file:///...` dan Advance Path `(file;file:///...)`.
+  - **Git Clone Multi-Protocol Widget**: Saat URL GitHub/Git terdeteksi di clipboard, cell konten secara otomatis menampilkan pill tabs `[ HTTPS | SSH | GitHub CLI ]` dengan selectable URL box dan tombol copy `[📋]`.
+
 - **`csv-to-frontmatter.ps1`**:
   Mengubah data tabular CSV menjadi dokumen Markdown dengan YAML frontmatter kompatibel Obsidian:
   ```powershell
@@ -152,16 +163,32 @@ Fokus pada konversi data, sanitasi format, manipulasi teks aman, dan manajemen c
 
 ### Context: Repo (`script/repo/`)
 Fokus pada version control, keamanan riwayat git, dan otomasi branching.
-- **`git-manage_stand.ps1`**:
-  Manajer Git interaktif lengkap dengan penanganan stash, reflog recovery, dan branch switching.
-- **`git-branch-rename_stand.ps1`**:
+
+- **`git-manage.ps1` (Universal Git Manager & Clone Wizard)**:
+  Manajer Git interaktif lengkap dengan penanganan stash, reflog recovery, branch switching, dan Git Clone Wizard:
+  ```powershell
+  # Menjalankan menu interaktif Git Manager
+  .\script\repo\git-manage.ps1
+  ```
+  **Fitur Utama**:
+  1. **Menu [ 1 ] Clone Remote Repository**:
+     - Mendukung format URL: HTTPS (`https://github.com/owner/repo.git`), SSH (`git@github.com:owner/repo.git`), GitHub CLI (`gh repo clone owner/repo`), atau short slug (`owner/repo`).
+     - **Clipboard Auto-Detection**: Otomatis mendeteksi jika URL repositori Git tersimpan di clipboard dan menjadikannya default prompt value.
+     - **Destination Strategy**: Pilihan kloning langsung in-place ke folder kosong terpilih, membuat subfolder baru, atau memasukkan path kustom.
+     - **Opsi Shallow Clone**: Pilihan `--depth 1` untuk download cepat.
+     - **Pre-flight Briefed Overview Card**: Menampilkan rangkuman target path, URL, dan preview perintah `git clone` sebelum dieksekusi.
+     - **Yes-to-Proceed Gating**: Konfirmasi eksplisit `[y/N]` (default Enter = Batal).
+  2. **Multi-Version Adapter**:
+     - Memilih adapter otomatis berdasarkan versi Git terinstal (`adapter/v02-30-00.psm1` untuk Git 2.30+ atau `adapter/v02-40-00.psm1` untuk Git 2.40+).
+
+- **`git-branch-rename.ps1`**:
   Otomasi penggantian nama branch mengikuti standar penamaan datar `language-firstname-secondname`.
 
 ### Context: Website (`script/website/`)
 Fokus pada client bundling, stylesheet compiler, inspeksi DOM, dan UI webview.
-- **`build-bundles_stand.js`**:
+- **`build-bundles.js`**:
   Mengompilasi ES modules menjadi bundel produksi terisolasi tanpa framework berlebih.
-- **`theme-compiler_stand.js`**:
+- **`theme-compiler.js`**:
   Kompilasi SCSS/CSS 1:1 dan mode sinkronisasi tema Obsidian.
 - **Protokol Universal Drag-and-Drop (Cross-OS)**:
   Standar interaksi webview untuk tree explorer dan file manager (`[[universal-drag-and-drop-cross-os]]`). Mendukung 3 tier:
@@ -181,16 +208,14 @@ Fokus pada sinkronisasi aset ke dalam engine game.
 
 ---
 
-## 5. Sistem Versioned Dependencies Checker
+## 5. Sistem Versioned Adapter Architecture
 
-Untuk mengatasi perbedaan versi antar proyek (misalnya Project A menggunakan Blender 3.6 LTS sementara Project B menggunakan Blender 4.2), setiap context memiliki folder:
-`script/<context>/modules/dependencies-checker/`
-
-Folder ini menampung profil kompatibilitas dalam format yang sesuai:
-- **`.json`**: Definisi deklaratif universal (semver range, command requirements).
-- **`.py`**: Pengecekan API internal Blender (`bpy`).
-- **`.js`**: Pengecekan API bundler atau engine Node.js.
-- **`.ps1`**: Pengecekan registry atau runtime Windows/PowerShell.
+Sesuai `brief/v01-03-02`, penanganan multi-versi software dibungkus di dalam subfolder `adapter/` pada setiap context, bukan lagi menggunakan modul checker bersarang:
+- **`script/repo/adapter/`**: Adapter versi Git (`v02-30-00.psm1`, `v02-40-00.psm1`).
+- **`script/file/adapter/`**: Adapter fungsional PolyClip 4-mode (`detector-clipboard-4-mode.psm1`, `clipboard-jit-inspector.psm1`, dsb.).
+- **`script/blender/adapter/`**: Adapter versi Blender (`v03-06-00.py`, `v04-02-00.py`).
+- **`script/unity/adapter/`**: Adapter versi Unity (`v20-21-03.cs`, `v20-22-03.cs`).
+- **`script/website/adapter/`**: Adapter versi Node.js (`v18-00-00.js`, `v20-00-00.js`).
 
 ---
 
