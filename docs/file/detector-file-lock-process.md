@@ -12,7 +12,7 @@
 When applications, IDE file-watcher sidecars (`muninn-sidecar.exe`), background build jobs (`node.exe`, `esbuild.exe`), language servers (`language_server.exe`), or terminals actively hold open file or directory handles, developers encounter sharing violations (`ERROR_SHARING_VIOLATION` `0x80070020`) or Windows Explorer **"Folder In Use"** dialogs (`ERROR_ACCESS_DENIED` `0x80070005`).
 
 `detector-file-lock-process.ps1` provides an interactive, dual-mode diagnostics and unlocking suite:
-1. **Mode A (`Group by Application`)**: Groups locked files and folders by the holding Application and Process ID (`PID`), presenting resource names, masked paths, open handle counts / lock modes, and instant row actions (`[Reveal]`, `[Re-test]`, `[Unlock]`).
+1. **Mode A (`Group by Application`)**: Groups locked files and folders by the holding Application and Process ID (`PID`), presenting resource names, masked paths, open handle counts / lock modes, and instant row actions (`[Reveal]`, `[Re-test]`, `[Only Instance]`, `[Unlock All]`).
 2. **Mode B (`Group by Drive & Directory Tree`)**: Discovers all active drives (`C:`, `D:`, `E:`) dynamically and presents an interactive directory tree to select and inspect any target scope.
 
 ---
@@ -63,11 +63,11 @@ param (
    - Uses `rstrtmgr.dll` for leaf files and `Win32_Process` command-line matching for background worker processes.
 
 ### 3.2. Surgical Remote Handle Closing (`Unlock-FileOrFolder`)
-Clicking `[Unlock]` executes an 8-step non-destructive release sequence:
-1. **Remote Handle Closure (`DUPLICATE_CLOSE_SOURCE`)**: Calls `[HandleScanOOP]::CloseHandlesForPath($resolved)` using `DuplicateHandle(..., 0x00000001)` to directly close open file and directory watcher handles held inside the target path by processes like `muninn-sidecar.exe` without killing the IDE.
+`Unlock-FileOrFolder -Path <string> [-ProcessId <int>]` supports both **Single-Instance Mode** (`[Only Instance]`, `-ProcessId > 0`) and **All-Instances Mode** (`[Unlock All]`, `-ProcessId 0`):
+1. **Remote Handle Closure (`DUPLICATE_CLOSE_SOURCE`)**: Calls `[HandleScanOOP]::CloseHandlesForPath($resolved, $ProcessId)` using `DuplicateHandle(..., 0x00000001)` to directly close open file and directory watcher handles held inside the target path by either the single specified PID (`$ProcessId > 0`) or all holding processes (`$ProcessId == 0`) without killing the IDE.
 2. **Explorer Folder Release**: Closes any open Windows Explorer windows pointing to the target folder via `Shell.Application`.
 3. **Immediate Fast-Path Verification**: Checks `Test-FileIsLocked`; returns `$true` immediately if the lock is already cleared.
-4. **Remaining Non-System Process Termination**: If still locked, terminates remaining non-critical processes holding handles or CWD inside the path (strictly protecting system processes and IDE hosts: `explorer`, `lsass`, `services`, `csrss`, `system`, `svchost`, `wininit`, `winlogon`, `dwm`, `antigravity`, `code`).
+4. **Remaining Non-System Process Termination**: If still locked, terminates remaining non-critical processes holding handles or CWD inside the path (scoped to `$ProcessId` in `[Only Instance]` mode, or across all holding PIDs in `[Unlock All]` mode, strictly protecting system processes and IDE hosts: `explorer`, `lsass`, `services`, `csrss`, `system`, `svchost`, `wininit`, `winlogon`, `dwm`, `antigravity`, `code`).
 5. **Attribute Normalization & Backoff Verification**: Clears read-only/system/hidden flags on the target root and verifies unlock status across `150ms`, `350ms`, and `700ms` backoff intervals.
 
 ---
@@ -76,25 +76,26 @@ Clicking `[Unlock]` executes an 8-step non-destructive release sequence:
 
 ### 4.1. WPF Dark Card Panel (`-Panel`)
 ```text
-+----------------------------------------------------------------------------------------------------------+
-| LOCK INSPECTOR - Active File Lock & Disk Activity [Drag to Move] [Hold to Reveal] [Mask: ON] [Refresh] X |
-+----------------------------------------------------------------------------------------------------------+
-| Target Scope: [ E:\proj\trash-bin                                ] [Paste Clipboard] [Browse...] [Inspect]|
-+----------------------------------------------------------------------------------------------------------+
-| [Mode A: Group by Application] [Mode B: Group by Drive & Directory Tree]          Filter: [            ] |
-+----------------------------------------------------------------------------------------------------------+
-| APPLICATION / PID            FILE / FOLDER NAME     LOCKED RESOURCE PATH          LOCK MODE      ACTIONS |
-+----------------------------------------------------------------------------------------------------------+
-| muninn-sidecar (PID: 10872)  my-video               E:\proj\trash-bin\my-video    79 Handle(s)   [Reveal] [Re-test] [Unlock] |
-| node (PID: 31832)            remotion               E:\proj\remotion              304 Handle(s)  [Reveal] [Re-test] [Unlock] |
-+----------------------------------------------------------------------------------------------------------+
++----------------------------------------------------------------------------------------------------------------------------+
+| LOCK INSPECTOR - Active File Lock & Disk Activity [Drag to Move]         [Hold to Reveal] [Mask: ON (2-Letter)] [Refresh] X |
++----------------------------------------------------------------------------------------------------------------------------+
+| Target Scope: [ E:\proj\trash-bin                                        ] [Paste Clipboard] [Browse...]    [Inspect Path] |
++----------------------------------------------------------------------------------------------------------------------------+
+| [Mode A: Group by Application] [Mode B: Group by Drive & Directory Tree]                            Filter: [            ] |
++----------------------------------------------------------------------------------------------------------------------------+
+| APPLICATION / PID            FILE / FOLDER NAME     LOCKED RESOURCE PATH          LOCK MODE      ACTIONS                   |
++----------------------------------------------------------------------------------------------------------------------------+
+| muninn-sidecar (PID: 10872)  my-video               E:\proj\trash-bin\my-video    79 Handle(s)   [Reveal] [Re-test] [Only Instance] [Unlock All] |
+| node (PID: 31832)            remotion               E:\proj\remotion              304 Handle(s)  [Reveal] [Re-test] [Only Instance] [Unlock All] |
++----------------------------------------------------------------------------------------------------------------------------+
 ```
 
 - **Target Scope Toolbar**: Includes `[Paste Clipboard]`, `[Browse...]`, and `[Inspect Path]`, plus full window Drag & Drop support.
-- **Row Actions** (isolated per row via `$sender.Tag` context):
+- **Row Actions** (isolated per row via `$sender.Tag` context and synchronized across sibling rows via `$script:allRowContexts`):
   - `[Reveal]`: Selects the locked item in Windows File Explorer.
-  - `[Re-test]`: Re-checks `Test-FileIsLocked` and updates the badge to `Clear (Unlocked)` if released.
-  - `[Unlock]`: Runs `Unlock-FileOrFolder`, turning the status badge green (`Clear (Unlocked)`) and button to `Unlocked`.
+  - `[Re-test]`: Re-checks `Test-FileIsLocked` and updates all matching rows for that path to `Clear (Unlocked)` if released.
+  - `[Only Instance]`: Runs `Unlock-FileOrFolder -Path $ctx.Path -ProcessId $ctx.ProcessId` to release **only** that row's PID (`Instance Unlocked`), or marks all sibling rows `Clear (Unlocked)` if that was the final lock on the path.
+  - `[Unlock All]`: Runs `Unlock-FileOrFolder -Path $ctx.Path -ProcessId 0` across **all** holding processes and immediately turns **all sibling rows for that path** green (`Clear (Unlocked)`) in one click.
 - **Privacy Masking (`Format-PrivacyMaskString`)**: Masks emails and user profile paths (`C:\Users\fa***`) to 2 visible characters by default (`Mask: ON (2-Letter)`), with ephemeral `Hold to Reveal` and session-only toggle.
 
 ### 4.2. CLI Dashboard (`-Mode CLI`)
@@ -105,14 +106,15 @@ Interactive console view supporting `[TAB]` to toggle between `App` view and `Dr
 ## 5. Architecture & Adapter Modules
 
 ```text
-script/file/
-├── detector-file-lock-process.ps1                 # Entry point CLI & WPF dispatcher
-└── adapter/
-    ├── detector-file-lock-process.psm1            # Master snapshot aggregator & batch scanner
-    ├── file-lock-inspector.psm1                   # HandleScanOOP, ProcessCwdReader, RestartManager & Unlock engine
-    ├── drive-activity-scanner.psm1                # System drive discovery & lazy tree enumerator
-    ├── lock-console-dashboard.psm1                # Interactive ANSI CLI dashboard renderer
-    └── lock-panel-window.psm1                     # Interactive WPF dark card window host
+script
+    file
+        detector-file-lock-process.ps1          # Entry point CLI & WPF dispatcher
+        adapter
+            detector-file-lock-process.psm1     # Master snapshot aggregator & batch scanner
+            file-lock-inspector.psm1            # HandleScanOOP, ProcessCwdReader, RestartManager & Unlock engine
+            drive-activity-scanner.psm1         # System drive discovery & lazy tree enumerator
+            lock-console-dashboard.psm1         # Interactive ANSI CLI dashboard renderer
+            lock-panel-window.psm1              # Interactive WPF dark card window host
 ```
 
 ---

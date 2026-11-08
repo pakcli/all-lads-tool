@@ -6,6 +6,44 @@
 #>
 
 $adapterDir = $PSScriptRoot
+$script:optionsJsonPath = Join-Path $adapterDir "detector-file-lock-process.json"
+
+function Save-LockInspectorOptions {
+    [CmdletBinding()]
+    param(
+        [string]$TargetScope = "",
+        [int]$DetectedLocksCount = 0
+    )
+    try {
+        $nowIso = (Get-Date).ToString("yyyy-MM-ddTHH:mm:sszzz")
+        $histList = [System.Collections.Generic.List[object]]::new()
+        if (Test-Path -LiteralPath $script:optionsJsonPath) {
+            $raw = Get-Content -LiteralPath $script:optionsJsonPath -Raw -Encoding UTF8 -ErrorAction SilentlyContinue
+            if (-not [string]::IsNullOrWhiteSpace($raw)) {
+                $existing = $raw | ConvertFrom-Json
+                if ($existing -and $existing.history) {
+                    foreach ($h in @($existing.history | Select-Object -Last 19)) {
+                        [void]$histList.Add($h)
+                    }
+                }
+            }
+        }
+        [void]$histList.Add([PSCustomObject]@{
+            timestamp          = $nowIso
+            targetScope        = if ($TargetScope) { $TargetScope } else { "Auto-Discovery (E:\proj\trash-bin + E:\proj)" }
+            detectedLocksCount = $DetectedLocksCount
+        })
+        $payload = [PSCustomObject]@{
+            executor  = "detector-file-lock-process.ps1"
+            updatedAt = $nowIso
+            options   = [PSCustomObject]@{
+                lastTargetScope = $TargetScope
+            }
+            history   = ,$histList.ToArray()
+        }
+        Set-Content -LiteralPath $script:optionsJsonPath -Value ($payload | ConvertTo-Json -Depth 6) -Force -Encoding UTF8
+    } catch {}
+}
 
 Import-Module -Name (Join-Path $adapterDir "file-lock-inspector.psm1") -DisableNameChecking -Force
 Import-Module -Name (Join-Path $adapterDir "drive-activity-scanner.psm1") -DisableNameChecking -Force
@@ -120,6 +158,8 @@ function Get-LockInspectorSnapshot {
         }
     }
 
+    Save-LockInspectorOptions -TargetScope $TargetScope -DetectedLocksCount $locks.Count
+
     return [PSCustomObject]@{
         Timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
         Drives    = $drives
@@ -127,4 +167,4 @@ function Get-LockInspectorSnapshot {
     }
 }
 
-Export-ModuleMember -Function Get-LockInspectorSnapshot, Render-LockConsoleDashboard, Show-FileLockPanel, Test-FileIsLocked, Get-FileLockingProcesses, Restart-WindowsExplorer, Unlock-FileOrFolder, Get-SystemDrivesOverview, Get-DirectoryTreeNode
+Export-ModuleMember -Function Get-LockInspectorSnapshot, Save-LockInspectorOptions, Render-LockConsoleDashboard, Show-FileLockPanel, Test-FileIsLocked, Get-FileLockingProcesses, Restart-WindowsExplorer, Unlock-FileOrFolder, Get-SystemDrivesOverview, Get-DirectoryTreeNode

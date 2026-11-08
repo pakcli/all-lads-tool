@@ -62,7 +62,7 @@ function Show-FileLockPanel {
 <Window xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         Title="Active File Lock &amp; Disk Activity Inspector"
-        Height="660" Width="1080"
+        Height="660" Width="1160"
         WindowStartupLocation="CenterScreen"
         Background="#101012" Foreground="#E4E4E7"
         WindowStyle="None" AllowsTransparency="True" BorderThickness="1" BorderBrush="#27272A"
@@ -204,7 +204,7 @@ function Show-FileLockPanel {
                             <ColumnDefinition Width="190"/> <!-- File Name -->
                             <ColumnDefinition Width="*"/>   <!-- File Path -->
                             <ColumnDefinition Width="170"/> <!-- Lock Status -->
-                            <ColumnDefinition Width="250"/> <!-- Actions -->
+                            <ColumnDefinition Width="310"/> <!-- Actions -->
                         </Grid.ColumnDefinitions>
                         <TextBlock Grid.Column="0" Text="APPLICATION / PID" FontWeight="Bold" Foreground="#38BDF8"/>
                         <TextBlock Grid.Column="1" Text="FILE / FOLDER NAME" FontWeight="SemiBold" Foreground="#34D399"/>
@@ -427,9 +427,31 @@ function Show-FileLockPanel {
         }
     })
 
+    $MarkRowCtxGreen = {
+        param($rCtx, [string]$badgeLabel = "Clear (Unlocked)", [bool]$markAllButtons = $true)
+        if (-not $rCtx) { return }
+        $rCtx.Badge.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#064E3B")
+        $rCtx.Badge.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#047857")
+        $rCtx.TxtBadge.Text = $badgeLabel
+        $rCtx.TxtBadge.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#34D399")
+        if ($rCtx.BtnUnlockInst) {
+            $rCtx.BtnUnlockInst.Content = "Unlocked"
+            $rCtx.BtnUnlockInst.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#064E3B")
+            $rCtx.BtnUnlockInst.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#047857")
+            $rCtx.BtnUnlockInst.IsEnabled = $false
+        }
+        if ($markAllButtons -and $rCtx.BtnUnlockAll) {
+            $rCtx.BtnUnlockAll.Content = "Unlocked"
+            $rCtx.BtnUnlockAll.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#064E3B")
+            $rCtx.BtnUnlockAll.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#047857")
+            $rCtx.BtnUnlockAll.IsEnabled = $false
+        }
+    }
+
     # Render App Rows Cards (PolyClip TableView Row Card Style)
     $RenderAppRows = {
         $appRowsContainer.Children.Clear()
+        $script:allRowContexts = [System.Collections.Generic.List[object]]::new()
         $filter = if ($txtFilter.Text) { $txtFilter.Text.Trim().ToLower() } else { "" }
         $unmask = &$IsCurrentlyUnmasked
 
@@ -473,7 +495,7 @@ function Show-FileLockPanel {
             $col1 = [System.Windows.Controls.ColumnDefinition]::new(); $col1.Width = [System.Windows.GridLength]::new(190)
             $col2 = [System.Windows.Controls.ColumnDefinition]::new(); $col2.Width = [System.Windows.GridLength]::new(1, [System.Windows.GridUnitType]::Star)
             $col3 = [System.Windows.Controls.ColumnDefinition]::new(); $col3.Width = [System.Windows.GridLength]::new(170)
-            $col4 = [System.Windows.Controls.ColumnDefinition]::new(); $col4.Width = [System.Windows.GridLength]::new(250)
+            $col4 = [System.Windows.Controls.ColumnDefinition]::new(); $col4.Width = [System.Windows.GridLength]::new(310)
             $grid.ColumnDefinitions.Add($col0)
             $grid.ColumnDefinitions.Add($col1)
             $grid.ColumnDefinitions.Add($col2)
@@ -536,12 +558,15 @@ function Show-FileLockPanel {
             $badge.Child = $txtBadge
             [System.Windows.Controls.Grid]::SetColumn($badge, 3)
 
-            # Col 4: Action Buttons (Reveal, Re-test, Unlock)
+            # Col 4: Action Buttons (Reveal, Re-test, Only Instance, Unlock All)
             $pnlAct = [System.Windows.Controls.StackPanel]::new()
             $pnlAct.Orientation = [System.Windows.Controls.Orientation]::Horizontal
             $pnlAct.HorizontalAlignment = [System.Windows.HorizontalAlignment]::Center
 
-            $targetActualPath = $rawPath
+            $parsedPid = 0
+            if ($lock.ProcessId -and $lock.ProcessId -ne "-") {
+                [void][int]::TryParse("$($lock.ProcessId)", [ref]$parsedPid)
+            }
 
             # 1. Reveal in Explorer
             $btnReveal = [System.Windows.Controls.Button]::new()
@@ -550,7 +575,7 @@ function Show-FileLockPanel {
             $btnReveal.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#1E293B")
             $btnReveal.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#38BDF8")
             $btnReveal.Margin = [System.Windows.Thickness]::new(2, 0, 2, 0)
-            $btnReveal.Padding = [System.Windows.Thickness]::new(7, 2, 7, 2)
+            $btnReveal.Padding = [System.Windows.Thickness]::new(6, 2, 6, 2)
             $btnReveal.ToolTip = "Reveal and select item in File Explorer"
             $btnReveal.Add_Click({
                 param($sender, $e)
@@ -568,28 +593,44 @@ function Show-FileLockPanel {
             $btnProbe.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#1E1E22")
             $btnProbe.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#94A3B8")
             $btnProbe.Margin = [System.Windows.Thickness]::new(2, 0, 2, 0)
-            $btnProbe.Padding = [System.Windows.Thickness]::new(7, 2, 7, 2)
+            $btnProbe.Padding = [System.Windows.Thickness]::new(6, 2, 6, 2)
             $btnProbe.ToolTip = "Check if lock on this resource has cleared"
 
-            # 3. UNLOCK Button
-            $btnUnlock = [System.Windows.Controls.Button]::new()
-            $btnUnlock.Content = "Unlock"
-            $btnUnlock.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#D97706")
-            $btnUnlock.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#FFFFFF")
-            $btnUnlock.FontWeight = [System.Windows.FontWeights]::Bold
-            $btnUnlock.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#B45309")
-            $btnUnlock.Margin = [System.Windows.Thickness]::new(2, 0, 2, 0)
-            $btnUnlock.Padding = [System.Windows.Thickness]::new(10, 2, 10, 2)
-            $btnUnlock.ToolTip = "Force unlock this resource by closing handles and terminating holding processes"
+            # 3. ONLY INSTANCE Button (Scoped to this row's PID)
+            $btnUnlockInst = [System.Windows.Controls.Button]::new()
+            $btnUnlockInst.Content = "Only Instance"
+            $btnUnlockInst.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#3730A3")
+            $btnUnlockInst.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#E0E7FF")
+            $btnUnlockInst.FontWeight = [System.Windows.FontWeights]::SemiBold
+            $btnUnlockInst.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#4F46E5")
+            $btnUnlockInst.Margin = [System.Windows.Thickness]::new(2, 0, 2, 0)
+            $btnUnlockInst.Padding = [System.Windows.Thickness]::new(7, 2, 7, 2)
+            $btnUnlockInst.ToolTip = "Release lock held ONLY by this specific process instance ($($lock.ProcessName) PID: $($lock.ProcessId))"
+
+            # 4. UNLOCK ALL Button (Scoped to this path across all holding processes)
+            $btnUnlockAll = [System.Windows.Controls.Button]::new()
+            $btnUnlockAll.Content = "Unlock All"
+            $btnUnlockAll.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#D97706")
+            $btnUnlockAll.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#FFFFFF")
+            $btnUnlockAll.FontWeight = [System.Windows.FontWeights]::Bold
+            $btnUnlockAll.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#B45309")
+            $btnUnlockAll.Margin = [System.Windows.Thickness]::new(2, 0, 2, 0)
+            $btnUnlockAll.Padding = [System.Windows.Thickness]::new(8, 2, 8, 2)
+            $btnUnlockAll.ToolTip = "Unlock this file/folder from ALL holding processes simultaneously"
 
             $rowCtx = [PSCustomObject]@{
-                Path      = $rawPath
-                Badge     = $badge
-                TxtBadge  = $txtBadge
-                BtnUnlock = $btnUnlock
+                Path          = $rawPath
+                ProcessId     = $parsedPid
+                ProcessName   = "$($lock.ProcessName)"
+                Badge         = $badge
+                TxtBadge      = $txtBadge
+                BtnUnlockInst = $btnUnlockInst
+                BtnUnlockAll  = $btnUnlockAll
             }
+            [void]$script:allRowContexts.Add($rowCtx)
             $btnProbe.Tag = $rowCtx
-            $btnUnlock.Tag = $rowCtx
+            $btnUnlockInst.Tag = $rowCtx
+            $btnUnlockAll.Tag = $rowCtx
 
             $btnProbe.Add_Click({
                 param($sender, $e)
@@ -597,14 +638,11 @@ function Show-FileLockPanel {
                 if (-not $ctx -or [string]::IsNullOrWhiteSpace($ctx.Path)) { return }
                 $isStill = Test-FileIsLocked -Path $ctx.Path
                 if (-not $isStill) {
-                    $ctx.Badge.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#064E3B")
-                    $ctx.Badge.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#047857")
-                    $ctx.TxtBadge.Text = "Clear (Unlocked)"
-                    $ctx.TxtBadge.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#34D399")
-                    $ctx.BtnUnlock.Content = "Unlocked"
-                    $ctx.BtnUnlock.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#064E3B")
-                    $ctx.BtnUnlock.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#047857")
-                    $ctx.BtnUnlock.IsEnabled = $false
+                    foreach ($sib in $script:allRowContexts) {
+                        if ($sib.Path -eq $ctx.Path) {
+                            &$MarkRowCtxGreen $sib "Clear (Unlocked)" $true
+                        }
+                    }
                     $txtStatus.Text = "Status checked: $(Split-Path -Leaf $ctx.Path) is no longer locked."
                 } else {
                     $txtStatus.Text = "Status checked: $(Split-Path -Leaf $ctx.Path) is STILL LOCKED."
@@ -612,41 +650,82 @@ function Show-FileLockPanel {
             })
             [void]$pnlAct.Children.Add($btnProbe)
 
-            $btnUnlock.Add_Click({
+            $btnUnlockInst.Add_Click({
                 param($sender, $e)
                 $ctx = $sender.Tag
                 try {
                     if (-not $ctx -or [string]::IsNullOrWhiteSpace($ctx.Path)) { return }
-                    $txtStatus.Text = "Unlocking $(Split-Path -Leaf $ctx.Path)..."
-                    $ctx.BtnUnlock.IsEnabled = $false
-                    $ctx.BtnUnlock.Content = "Unlocking..."
+                    $txtStatus.Text = "Unlocking $(Split-Path -Leaf $ctx.Path) from $($ctx.ProcessName) (PID: $($ctx.ProcessId))..."
+                    $ctx.BtnUnlockInst.IsEnabled = $false
+                    $ctx.BtnUnlockInst.Content = "Unlocking..."
 
-                    # Execute multi-tier unlock protocol
-                    $isUnlocked = Unlock-FileOrFolder -Path $ctx.Path
-                    if ($isUnlocked) {
-                        $ctx.Badge.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#064E3B")
-                        $ctx.Badge.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#047857")
-                        $ctx.TxtBadge.Text = "Clear (Unlocked)"
-                        $ctx.TxtBadge.Foreground = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#34D399")
-                        $ctx.BtnUnlock.Content = "Unlocked"
-                        $ctx.BtnUnlock.Background = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#064E3B")
-                        $ctx.BtnUnlock.BorderBrush = [System.Windows.Media.BrushConverter]::new().ConvertFromString("#047857")
-                        $ctx.BtnUnlock.IsEnabled = $false
-                        $txtStatus.Text = "SUCCESS: $(Split-Path -Leaf $ctx.Path) has been UNLOCKED!"
+                    $isInstReleased = Unlock-FileOrFolder -Path $ctx.Path -ProcessId $ctx.ProcessId
+                    $isPathStillLocked = Test-FileIsLocked -Path $ctx.Path
+
+                    if (-not $isPathStillLocked) {
+                        foreach ($sib in $script:allRowContexts) {
+                            if ($sib.Path -eq $ctx.Path) {
+                                &$MarkRowCtxGreen $sib "Clear (Unlocked)" $true
+                            }
+                        }
+                        $txtStatus.Text = "SUCCESS: $(Split-Path -Leaf $ctx.Path) is now completely UNLOCKED!"
+                    } elseif ($isInstReleased) {
+                        &$MarkRowCtxGreen $ctx "Instance Unlocked" $false
+                        $txtStatus.Text = "Released $($ctx.ProcessName) (PID: $($ctx.ProcessId)) from $(Split-Path -Leaf $ctx.Path). Other instances still hold locks."
                     } else {
-                        $ctx.BtnUnlock.IsEnabled = $true
-                        $ctx.BtnUnlock.Content = "Unlock"
-                        $txtStatus.Text = "Attempted unlock on $(Split-Path -Leaf $ctx.Path). If lock persists, please close any external terminal/VS Code tab open to this folder or run as Administrator."
+                        $ctx.BtnUnlockInst.IsEnabled = $true
+                        $ctx.BtnUnlockInst.Content = "Only Instance"
+                        $txtStatus.Text = "Could not release $($ctx.ProcessName) (PID: $($ctx.ProcessId)). Try 'Unlock All' or close its terminal/editor tab."
                     }
                 } catch {
-                    if ($ctx -and $ctx.BtnUnlock) {
-                        $ctx.BtnUnlock.IsEnabled = $true
-                        $ctx.BtnUnlock.Content = "Unlock"
+                    if ($ctx -and $ctx.BtnUnlockInst) {
+                        $ctx.BtnUnlockInst.IsEnabled = $true
+                        $ctx.BtnUnlockInst.Content = "Only Instance"
                     }
-                    $txtStatus.Text = "Unlock error: $_"
+                    $txtStatus.Text = "Instance unlock error: $_"
                 }
             })
-            [void]$pnlAct.Children.Add($btnUnlock)
+            [void]$pnlAct.Children.Add($btnUnlockInst)
+
+            $btnUnlockAll.Add_Click({
+                param($sender, $e)
+                $ctx = $sender.Tag
+                try {
+                    if (-not $ctx -or [string]::IsNullOrWhiteSpace($ctx.Path)) { return }
+                    $txtStatus.Text = "Unlocking $(Split-Path -Leaf $ctx.Path) from ALL holding processes..."
+                    foreach ($sib in $script:allRowContexts) {
+                        if ($sib.Path -eq $ctx.Path -and $sib.BtnUnlockAll) {
+                            $sib.BtnUnlockAll.IsEnabled = $false
+                            $sib.BtnUnlockAll.Content = "Unlocking..."
+                        }
+                    }
+
+                    $isUnlocked = Unlock-FileOrFolder -Path $ctx.Path -ProcessId 0
+                    if ($isUnlocked) {
+                        foreach ($sib in $script:allRowContexts) {
+                            if ($sib.Path -eq $ctx.Path) {
+                                &$MarkRowCtxGreen $sib "Clear (Unlocked)" $true
+                            }
+                        }
+                        $txtStatus.Text = "SUCCESS: $(Split-Path -Leaf $ctx.Path) has been UNLOCKED across all instances!"
+                    } else {
+                        foreach ($sib in $script:allRowContexts) {
+                            if ($sib.Path -eq $ctx.Path -and $sib.BtnUnlockAll) {
+                                $sib.BtnUnlockAll.IsEnabled = $true
+                                $sib.BtnUnlockAll.Content = "Unlock All"
+                            }
+                        }
+                        $txtStatus.Text = "Attempted Unlock All on $(Split-Path -Leaf $ctx.Path). If lock persists, close any active terminal/VS Code tab open to this folder."
+                    }
+                } catch {
+                    if ($ctx -and $ctx.BtnUnlockAll) {
+                        $ctx.BtnUnlockAll.IsEnabled = $true
+                        $ctx.BtnUnlockAll.Content = "Unlock All"
+                    }
+                    $txtStatus.Text = "Unlock All error: $_"
+                }
+            })
+            [void]$pnlAct.Children.Add($btnUnlockAll)
 
             [System.Windows.Controls.Grid]::SetColumn($pnlAct, 4)
 

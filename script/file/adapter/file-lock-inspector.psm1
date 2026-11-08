@@ -417,6 +417,11 @@ public static class HandleScanOOP {
 
     // Force-closes all remote file and directory handles matching targetPath or inside targetPath
     public static int CloseHandlesForPath(string targetPath) {
+        return CloseHandlesForPath(targetPath, 0);
+    }
+
+    // Force-closes remote file and directory handles matching targetPath (optionally scoped to a single targetPid > 0)
+    public static int CloseHandlesForPath(string targetPath, int targetPid) {
         if (string.IsNullOrWhiteSpace(targetPath)) return 0;
         string pre = targetPath.TrimEnd('\\').ToLowerInvariant();
         int closedCount = 0;
@@ -442,6 +447,7 @@ public static class HandleScanOOP {
                     if (e.ObjectTypeIndex != fileTypeIndex) continue;
                     int pid = (int)e.UniqueProcessId.ToInt64();
                     if (pid <= 4 || pid == me) continue;
+                    if (targetPid > 0 && pid != targetPid) continue;
                     IntPtr hp;
                     if (!procHandles.TryGetValue(pid, out hp)) {
                         hp = OpenProcess(0x0040, false, pid);
@@ -741,7 +747,8 @@ function Restart-WindowsExplorer {
 function Unlock-FileOrFolder {
     [CmdletBinding()]
     param(
-        [string]$Path = ""
+        [string]$Path = "",
+        [int]$ProcessId = 0
     )
 
     if ([string]::IsNullOrWhiteSpace($Path) -or (-not (Test-Path -LiteralPath $Path))) {
@@ -751,10 +758,65 @@ function Unlock-FileOrFolder {
     $resolved = (Resolve-Path -LiteralPath $Path -ErrorAction SilentlyContinue).Path
     if (-not $resolved) { $resolved = $Path }
     $leafName = Split-Path -Leaf $resolved
+    $protectedNames = @("explorer", "lsass", "services", "csrss", "system", "svchost", "wininit", "winlogon", "dwm", "antigravity", "code")
 
+    # INSTANCE-ONLY MODE ($ProcessId > 0): Release only the specified PID's lock on $resolved
+    if ($ProcessId -gt 0) {
+        try {
+            [void]([HandleScanOOP]::CloseHandlesForPath($resolved, $ProcessId))
+        } catch {}
+
+        # Check if this specific PID still holds open handles or CWD lock on $resolved
+        $stillHeldByPid = $false
+        try {
+            $remHandles = [HandleScanOOP]::Scan(@($resolved))
+            foreach ($line in $remHandles) {
+                $parts = $line -split '\|', 4
+                if ($parts.Count -ge 2 -and ([int]$parts[0]) -eq $ProcessId) {
+                    $stillHeldByPid = $true
+                    break
+                }
+            }
+        } catch {}
+
+        if (-not $stillHeldByPid) {
+            try {
+                $cwdMatches = [ProcessCwdReader]::FindProcessesInPath($resolved) | Where-Object { $_.ProcessId -eq $ProcessId }
+                if ($cwdMatches -and @($cwdMatches).Count -gt 0) {
+                    $stillHeldByPid = $true
+                }
+            } catch {}
+        }
+
+        if ($stillHeldByPid -and $ProcessId -gt 4 -and $ProcessId -ne $PID) {
+            try {
+                $procObj = Get-Process -Id $ProcessId -ErrorAction SilentlyContinue
+                if ($procObj -and ($protectedNames -notcontains $procObj.ProcessName.ToLowerInvariant())) {
+                    Stop-Process -Id $ProcessId -Force -ErrorAction SilentlyContinue
+                    Start-Sleep -Milliseconds 150
+                }
+            } catch {}
+            try {
+                [void]([HandleScanOOP]::CloseHandlesForPath($resolved, $ProcessId))
+            } catch {}
+        }
+
+        # Verify whether this PID is now clear (or if the entire path is unlocked)
+        if (-not (Test-FileIsLocked -Path $resolved)) { return $true }
+        try {
+            $afterHandles = [HandleScanOOP]::Scan(@($resolved)) | Where-Object { ([int]($_ -split '\|', 2)[0]) -eq $ProcessId }
+            $afterCwds = [ProcessCwdReader]::FindProcessesInPath($resolved) | Where-Object { $_.ProcessId -eq $ProcessId }
+            if ((@($afterHandles).Count -eq 0) -and (@($afterCwds).Count -eq 0)) {
+                return $true
+            }
+        } catch {}
+        return (-not (Test-FileIsLocked -Path $resolved))
+    }
+
+    # UNLOCK-ALL MODE ($ProcessId <= 0): Release all processes holding $resolved
     # 1. Force-close all remote file and directory handles inside targetPath (DUPLICATE_CLOSE_SOURCE)
     try {
-        [void]([HandleScanOOP]::CloseHandlesForPath($resolved))
+        [void]([HandleScanOOP]::CloseHandlesForPath($resolved, 0))
     } catch {}
 
     # 2. Close any Explorer windows currently viewing the locked path or its parent
