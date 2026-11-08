@@ -286,8 +286,10 @@ function Show-FileLockPanel {
     $script:currentDrives = $Drives
 
     # Initial Target Path Resolution
+    $script:userExplicitScope = $false
     if ($InitialPath -and (Test-Path -LiteralPath $InitialPath)) {
         $txtTargetPath.Text = $InitialPath
+        $script:userExplicitScope = $true
     } elseif ($AppLocks -and $AppLocks.Count -gt 0) {
         $firstLock = $AppLocks[0]
         $parentFolder = Split-Path -Parent $firstLock.FilePath
@@ -378,6 +380,7 @@ function Show-FileLockPanel {
 
     # Inspect Trigger Handler
     $TriggerInspect = {
+        $script:userExplicitScope = $true
         $target = $txtTargetPath.Text.Trim()
         $txtStatus.Text = "Inspecting locks for: $target..."
         if ($target -and (-not (Test-Path -LiteralPath $target))) {
@@ -786,16 +789,10 @@ function Show-FileLockPanel {
         $txtStatus.Text = "Refreshing file locks..."
         $target = $txtTargetPath.Text.Trim()
         if ($target -and (-not (Test-Path -LiteralPath $target))) {
-            $candidateTrashes = @("E:\proj\trash-bin", "D:\proj\trash-bin", (Join-Path (Get-Location).Path "trash-bin"))
-            $foundTrash = $candidateTrashes | Where-Object { (Test-Path -LiteralPath $_) -and (Get-ChildItem -LiteralPath $_ -ErrorAction SilentlyContinue).Count -gt 0 } | Select-Object -First 1
-            if ($foundTrash) {
-                $target = $foundTrash
-                $txtTargetPath.Text = $foundTrash
-            } else {
-                $target = ""
-            }
+            $target = ""
         }
-        $snap = Get-LockInspectorSnapshot -TargetScope $target
+        $scopeArg = if ($script:userExplicitScope -and $target) { $target } else { "" }
+        $snap = Get-LockInspectorSnapshot -TargetScope $scopeArg
         $script:currentAppLocks = $snap.AppLocks
         $script:currentDrives = $snap.Drives
         &$RenderAppRows

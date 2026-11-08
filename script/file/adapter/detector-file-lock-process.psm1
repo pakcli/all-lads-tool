@@ -25,18 +25,27 @@ function Get-LockInspectorSnapshot {
     $candidatePaths = [System.Collections.Generic.List[string]]::new()
 
     if ($TargetScope -and (Test-Path -LiteralPath $TargetScope)) {
-        $candidatePaths.Add((Resolve-Path -LiteralPath $TargetScope).Path)
+        $resolvedTarget = (Resolve-Path -LiteralPath $TargetScope).Path
+        $candidatePaths.Add($resolvedTarget)
+        $subTrash = Join-Path $resolvedTarget "trash-bin"
+        if (($resolvedTarget -notmatch 'trash-bin[\\/]?$') -and (Test-Path -LiteralPath $subTrash -PathType Container)) {
+            $candidatePaths.Add($subTrash)
+        }
     } else {
-        # Default Auto-Discovery: Check trash-bin and current working directory
-        $trashLocations = @(
-            (Join-Path (Get-Location).Path "trash-bin"),
-            (Join-Path (Split-Path (Get-Location).Path -Parent) "trash-bin"),
+        # Default Auto-Discovery: Check trash-bin and workspace directories
+        $cwdPath = (Get-Location).Path
+        $discoveryLocations = @(
             "E:\proj\trash-bin",
+            "E:\proj",
+            (Join-Path $cwdPath "trash-bin"),
+            $cwdPath,
             "D:\proj\trash-bin"
         )
-        foreach ($tl in $trashLocations) {
-            if (Test-Path -LiteralPath $tl -PathType Container) {
-                if (-not $candidatePaths.Contains($tl)) { $candidatePaths.Add($tl) }
+
+        foreach ($loc in $discoveryLocations) {
+            if ($loc -and (Test-Path -LiteralPath $loc -PathType Container)) {
+                $resLoc = (Resolve-Path -LiteralPath $loc).Path
+                if (-not $candidatePaths.Contains($resLoc)) { $candidatePaths.Add($resLoc) }
             }
         }
     }
@@ -46,19 +55,25 @@ function Get-LockInspectorSnapshot {
     foreach ($scope in $candidatePaths) {
         if (Test-Path -LiteralPath $scope -PathType Leaf) {
             if (Test-FileIsLocked -Path $scope) {
-                $lockedTargets.Add($scope)
-            }
-        } else {
-            # 1. Check directory lock on folder itself (only if not root trash-bin container)
-            if ($scope -notmatch 'trash-bin[\\/]?$') {
-                if (Test-FileIsLocked -Path $scope) {
+                if (-not $lockedTargets.Contains($scope)) {
                     $lockedTargets.Add($scope)
                 }
             }
+        } else {
+            # 1. Check directory lock on folder itself ONLY when user explicitly targeted that single folder
+            $isRootContainer = ($scope -match 'trash-bin[\\/]?$' -or $scope -match '^[A-Za-z]:[\\/]proj[\\/]?$' -or $scope -match '^[A-Za-z]:[\\/]$')
+            if ($TargetScope -and (-not $isRootContainer) -and ($scope -eq $candidatePaths[0])) {
+                if (Test-FileIsLocked -Path $scope) {
+                    if (-not $lockedTargets.Contains($scope)) {
+                        $lockedTargets.Add($scope)
+                    }
+                }
+            }
 
-            # 2. Check child directories inside the folder (first 30)
-            $subDirs = Get-ChildItem -LiteralPath $scope -Directory -ErrorAction SilentlyContinue | Select-Object -First 30
+            # 2. Check all child directories inside the folder
+            $subDirs = Get-ChildItem -LiteralPath $scope -Directory -ErrorAction SilentlyContinue
             foreach ($dir in $subDirs) {
+                if ($dir.Name -eq 'trash-bin' -and $candidatePaths.Contains($dir.FullName)) { continue }
                 if (Test-FileIsLocked -Path $dir.FullName) {
                     if (-not $lockedTargets.Contains($dir.FullName)) {
                         $lockedTargets.Add($dir.FullName)
@@ -66,8 +81,8 @@ function Get-LockInspectorSnapshot {
                 }
             }
 
-            # 3. Check leaf files directly inside the folder (first 30)
-            $subFiles = Get-ChildItem -LiteralPath $scope -File -ErrorAction SilentlyContinue | Select-Object -First 30
+            # 3. Check leaf files directly inside the folder (first 50)
+            $subFiles = Get-ChildItem -LiteralPath $scope -File -ErrorAction SilentlyContinue | Select-Object -First 50
             foreach ($item in $subFiles) {
                 if (Test-FileIsLocked -Path $item.FullName) {
                     if (-not $lockedTargets.Contains($item.FullName)) {
@@ -84,8 +99,20 @@ function Get-LockInspectorSnapshot {
             $batchHandles = [HandleScanOOP]::Scan($lockedTargets.ToArray())
         } catch {}
 
+        $batchCwds = @()
+        try {
+            $batchCwds = [ProcessCwdReader]::FindProcessesInPaths($lockedTargets.ToArray())
+        } catch {}
+
+        $batchProcs = @()
+        try {
+            $batchProcs = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+                $_.ProcessId -ne $PID -and $_.Name -notmatch '^(explorer|svchost|csrss|lsass)\.exe$'
+            })
+        } catch {}
+
         foreach ($lt in $lockedTargets) {
-            $found = Get-FileLockingProcesses -Path $lt -PreScannedHandles $batchHandles
+            $found = Get-FileLockingProcesses -Path $lt -PreScannedHandles $batchHandles -PreScannedCwds $batchCwds -PreScannedProcs $batchProcs
             foreach ($f in $found) {
                 $exists = $locks | Where-Object { $_.ProcessId -eq $f.ProcessId -and $_.FilePath -eq $f.FilePath }
                 if (-not $exists) { $locks.Add($f) }

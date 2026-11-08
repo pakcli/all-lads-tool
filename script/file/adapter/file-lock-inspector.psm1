@@ -188,22 +188,35 @@ public class ProcessCwdReader {
     }
 
     public static List<ProcessHoldingInfo> FindProcessesInPath(string targetPath) {
-        var list = new List<ProcessHoldingInfo>();
-        if (string.IsNullOrWhiteSpace(targetPath)) return list;
-        string clean = targetPath.TrimEnd('\\', '/').ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(targetPath)) return new List<ProcessHoldingInfo>();
+        return FindProcessesInPaths(new string[] { targetPath });
+    }
 
+    public static List<ProcessHoldingInfo> FindProcessesInPaths(string[] targetPaths) {
+        var list = new List<ProcessHoldingInfo>();
+        if (targetPaths == null || targetPaths.Length == 0) return list;
+        var prefixes = new List<string>();
+        foreach (var tp in targetPaths) {
+            if (!string.IsNullOrWhiteSpace(tp)) prefixes.Add(tp.TrimEnd('\\', '/').ToLowerInvariant());
+        }
+        if (prefixes.Count == 0) return list;
+
+        int me = Process.GetCurrentProcess().Id;
         foreach (var proc in Process.GetProcesses()) {
             try {
-                if (proc.Id <= 4 || proc.Id == Process.GetCurrentProcess().Id) continue;
+                if (proc.Id <= 4 || proc.Id == me) continue;
                 string cwd = GetProcessCwd(proc.Id);
                 if (!string.IsNullOrEmpty(cwd)) {
                     string lowerCwd = cwd.TrimEnd('\\', '/').ToLowerInvariant();
-                    if (lowerCwd == clean || lowerCwd.StartsWith(clean + "\\")) {
-                        list.Add(new ProcessHoldingInfo {
-                            ProcessId = proc.Id,
-                            ProcessName = proc.ProcessName,
-                            Cwd = cwd
-                        });
+                    foreach (var clean in prefixes) {
+                        if (lowerCwd == clean || lowerCwd.StartsWith(clean + "\\")) {
+                            list.Add(new ProcessHoldingInfo {
+                                ProcessId = proc.Id,
+                                ProcessName = proc.ProcessName,
+                                Cwd = cwd
+                            });
+                            break;
+                        }
                     }
                 }
             } catch {}
@@ -345,49 +358,59 @@ public static class HandleScanOOP {
         if (prefixes.Count == 0) return output;
 
         int me = Process.GetCurrentProcess().Id;
-        var snap = Snapshot();
-        int fileTypeIndex = ResolveFileTypeIndex(snap, me);
-        if (fileTypeIndex < 0) return output;
-
-        var names = new Dictionary<int, string>();
-        var procHandles = new Dictionary<int, IntPtr>();
-        IntPtr self = GetCurrentProcess();
-        try {
+        string tmp = Path.GetTempFileName();
+        int fileTypeIndex = -1;
+        using (var fs = new FileStream(tmp, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1, FileOptions.DeleteOnClose)) {
+            long myHandle = fs.SafeFileHandle.DangerousGetHandle().ToInt64();
+            var snap = Snapshot();
             foreach (var e in snap) {
-                if (e.ObjectTypeIndex != fileTypeIndex) continue;
-                int pid = (int)e.UniqueProcessId.ToInt64();
-                if (pid <= 4 || pid == me) continue;
-                IntPtr hp;
-                if (!procHandles.TryGetValue(pid, out hp)) {
-                    hp = OpenProcess(0x0040, false, pid);
-                    procHandles[pid] = hp;
+                if (e.UniqueProcessId.ToInt64() == me && e.HandleValue.ToInt64() == myHandle) {
+                    fileTypeIndex = e.ObjectTypeIndex;
+                    break;
                 }
-                if (hp == IntPtr.Zero) continue;
-                uint ga = e.GrantedAccess;
-                if (ga == 0x0012019f || ga == 0x001a019f || ga == 0x00120189 || ga == 0x00100000 || ga == 0x0016019f) continue;
-                IntPtr dup;
-                if (!DuplicateHandle(hp, e.HandleValue, self, out dup, 0, false, 2)) continue;
-                bool timedOut = false;
-                try {
-                    string p = QueryWithTimeout(dup, 150);
-                    if (p == null) { timedOut = lastTimedOut; continue; }
-                    if (p.StartsWith(@"\\?\")) p = p.Substring(4);
-                    string low = p.TrimEnd('\\').ToLowerInvariant();
-                    foreach (var pre in prefixes) {
-                        if (low == pre || low.StartsWith(pre + "\\")) {
-                            string n;
-                            if (!names.TryGetValue(pid, out n)) {
-                                try { n = Process.GetProcessById(pid).ProcessName; } catch { n = "?"; }
-                                names[pid] = n;
-                            }
-                            output.Add(pid + "|" + n + "|0x" + e.HandleValue.ToInt64().ToString("X") + "|" + p);
-                            break;
-                        }
-                    }
-                } finally { if (!timedOut) CloseHandle(dup); }
             }
-        } finally {
-            foreach (var hp in procHandles.Values) if (hp != IntPtr.Zero) CloseHandle(hp);
+            if (fileTypeIndex < 0) return output;
+
+            var names = new Dictionary<int, string>();
+            var procHandles = new Dictionary<int, IntPtr>();
+            IntPtr self = GetCurrentProcess();
+            try {
+                foreach (var e in snap) {
+                    if (e.ObjectTypeIndex != fileTypeIndex) continue;
+                    int pid = (int)e.UniqueProcessId.ToInt64();
+                    if (pid <= 4 || pid == me) continue;
+                    IntPtr hp;
+                    if (!procHandles.TryGetValue(pid, out hp)) {
+                        hp = OpenProcess(0x0040, false, pid);
+                        procHandles[pid] = hp;
+                    }
+                    if (hp == IntPtr.Zero) continue;
+                    uint ga = e.GrantedAccess;
+                    if (ga == 0x0012019f || ga == 0x001a019f || ga == 0x00120189 || ga == 0x00100000 || ga == 0x0016019f) continue;
+                    IntPtr dup;
+                    if (!DuplicateHandle(hp, e.HandleValue, self, out dup, 0, false, 2)) continue;
+                    bool timedOut = false;
+                    try {
+                        string p = QueryWithTimeout(dup, 150);
+                        if (p == null) { timedOut = lastTimedOut; continue; }
+                        if (p.StartsWith(@"\\?\")) p = p.Substring(4);
+                        string low = p.TrimEnd('\\').ToLowerInvariant();
+                        foreach (var pre in prefixes) {
+                            if (low == pre || low.StartsWith(pre + "\\")) {
+                                string n;
+                                if (!names.TryGetValue(pid, out n)) {
+                                    try { n = Process.GetProcessById(pid).ProcessName; } catch { n = "?"; }
+                                    names[pid] = n;
+                                }
+                                output.Add(pid + "|" + n + "|0x" + e.HandleValue.ToInt64().ToString("X") + "|" + p);
+                                break;
+                            }
+                        }
+                    } finally { if (!timedOut) CloseHandle(dup); }
+                }
+            } finally {
+                foreach (var hp in procHandles.Values) if (hp != IntPtr.Zero) CloseHandle(hp);
+            }
         }
         return output;
     }
@@ -399,50 +422,60 @@ public static class HandleScanOOP {
         int closedCount = 0;
 
         int me = Process.GetCurrentProcess().Id;
-        var snap = Snapshot();
-        int fileTypeIndex = ResolveFileTypeIndex(snap, me);
-        if (fileTypeIndex < 0) return 0;
-
-        var procHandles = new Dictionary<int, IntPtr>();
-        IntPtr self = GetCurrentProcess();
-        try {
+        string tmp = Path.GetTempFileName();
+        int fileTypeIndex = -1;
+        using (var fs = new FileStream(tmp, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, 1, FileOptions.DeleteOnClose)) {
+            long myHandle = fs.SafeFileHandle.DangerousGetHandle().ToInt64();
+            var snap = Snapshot();
             foreach (var e in snap) {
-                if (e.ObjectTypeIndex != fileTypeIndex) continue;
-                int pid = (int)e.UniqueProcessId.ToInt64();
-                if (pid <= 4 || pid == me) continue;
-                IntPtr hp;
-                if (!procHandles.TryGetValue(pid, out hp)) {
-                    hp = OpenProcess(0x0040, false, pid);
-                    procHandles[pid] = hp;
-                }
-                if (hp == IntPtr.Zero) continue;
-                uint ga = e.GrantedAccess;
-                if (ga == 0x0012019f || ga == 0x001a019f || ga == 0x00120189 || ga == 0x00100000 || ga == 0x0016019f) continue;
-                IntPtr dup;
-                if (!DuplicateHandle(hp, e.HandleValue, self, out dup, 0, false, 2)) continue;
-                bool timedOut = false;
-                bool matched = false;
-                try {
-                    string p = QueryWithTimeout(dup, 150);
-                    if (p == null) { timedOut = lastTimedOut; continue; }
-                    if (p.StartsWith(@"\\?\")) p = p.Substring(4);
-                    string low = p.TrimEnd('\\').ToLowerInvariant();
-                    if (low == pre || low.StartsWith(pre + "\\")) {
-                        matched = true;
-                    }
-                } finally {
-                    if (!timedOut) CloseHandle(dup);
-                }
-
-                if (matched) {
-                    IntPtr dummy;
-                    if (DuplicateHandle(hp, e.HandleValue, IntPtr.Zero, out dummy, 0, false, 0x00000001)) {
-                        closedCount++;
-                    }
+                if (e.UniqueProcessId.ToInt64() == me && e.HandleValue.ToInt64() == myHandle) {
+                    fileTypeIndex = e.ObjectTypeIndex;
+                    break;
                 }
             }
-        } finally {
-            foreach (var hp in procHandles.Values) if (hp != IntPtr.Zero) CloseHandle(hp);
+            if (fileTypeIndex < 0) return 0;
+
+            var procHandles = new Dictionary<int, IntPtr>();
+            IntPtr self = GetCurrentProcess();
+            try {
+                foreach (var e in snap) {
+                    if (e.ObjectTypeIndex != fileTypeIndex) continue;
+                    int pid = (int)e.UniqueProcessId.ToInt64();
+                    if (pid <= 4 || pid == me) continue;
+                    IntPtr hp;
+                    if (!procHandles.TryGetValue(pid, out hp)) {
+                        hp = OpenProcess(0x0040, false, pid);
+                        procHandles[pid] = hp;
+                    }
+                    if (hp == IntPtr.Zero) continue;
+                    uint ga = e.GrantedAccess;
+                    if (ga == 0x0012019f || ga == 0x001a019f || ga == 0x00120189 || ga == 0x00100000 || ga == 0x0016019f) continue;
+                    IntPtr dup;
+                    if (!DuplicateHandle(hp, e.HandleValue, self, out dup, 0, false, 2)) continue;
+                    bool timedOut = false;
+                    bool matched = false;
+                    try {
+                        string p = QueryWithTimeout(dup, 150);
+                        if (p == null) { timedOut = lastTimedOut; continue; }
+                        if (p.StartsWith(@"\\?\")) p = p.Substring(4);
+                        string low = p.TrimEnd('\\').ToLowerInvariant();
+                        if (low == pre || low.StartsWith(pre + "\\")) {
+                            matched = true;
+                        }
+                    } finally {
+                        if (!timedOut) CloseHandle(dup);
+                    }
+
+                    if (matched) {
+                        IntPtr dummy;
+                        if (DuplicateHandle(hp, e.HandleValue, IntPtr.Zero, out dummy, 0, false, 0x00000001)) {
+                            closedCount++;
+                        }
+                    }
+                }
+            } finally {
+                foreach (var hp in procHandles.Values) if (hp != IntPtr.Zero) CloseHandle(hp);
+            }
         }
         return closedCount;
     }
@@ -500,7 +533,9 @@ function Get-FileLockingProcesses {
     [CmdletBinding()]
     param(
         [string]$Path = "",
-        [array]$PreScannedHandles = $null
+        [array]$PreScannedHandles = $null,
+        [array]$PreScannedCwds = $null,
+        [array]$PreScannedProcs = $null
     )
 
     if ([string]::IsNullOrWhiteSpace($Path) -or (-not (Test-Path -LiteralPath $Path))) {
@@ -513,27 +548,16 @@ function Get-FileLockingProcesses {
     $isLocked = Test-FileIsLocked -Path $resolved
     if (-not $isLocked) { return @() }
 
-    # Query Restart Manager for locking PIDs
+    # Query Restart Manager for locking PIDs (only for leaf files; directories use HandleScanOOP directly for speed)
     $pids = [System.Collections.Generic.List[int]]::new()
-    try {
-        $rmPids = [RestartManager.FileLockFinder]::FindLockingProcessIds($resolved)
-        foreach ($p in $rmPids) {
-            if (-not $pids.Contains($p)) { $pids.Add($p) }
-        }
-    } catch {}
-
-    # If container (directory), also inspect sub-files to identify specific locking programs
     $isContainer = Test-Path -LiteralPath $resolved -PathType Container
-    if ($isContainer -and $pids.Count -eq 0) {
-        $innerFiles = Get-ChildItem -LiteralPath $resolved -Recurse -File -ErrorAction SilentlyContinue | Select-Object -First 50
-        foreach ($f in $innerFiles) {
-            try {
-                $subRm = [RestartManager.FileLockFinder]::FindLockingProcessIds($f.FullName)
-                foreach ($sp in $subRm) {
-                    if (-not $pids.Contains($sp)) { $pids.Add($sp) }
-                }
-            } catch {}
-        }
+    if (-not $isContainer) {
+        try {
+            $rmPids = [RestartManager.FileLockFinder]::FindLockingProcessIds($resolved)
+            foreach ($p in $rmPids) {
+                if (-not $pids.Contains($p)) { $pids.Add($p) }
+            }
+        } catch {}
     }
 
     $results = [System.Collections.Generic.List[PSCustomObject]]::new()
@@ -565,7 +589,7 @@ function Get-FileLockingProcesses {
                 [HandleScanOOP]::Scan(@($resolved))
             }
             $prefixLow = $resolved.TrimEnd('\').ToLowerInvariant()
-            $byPid = @{}
+            $byName = @{}
             foreach ($line in $handleLines) {
                 $parts = $line -split '\|', 4
                 if ($parts.Count -ge 4) {
@@ -575,19 +599,20 @@ function Get-FileLockingProcesses {
                         $hName = $parts[1]
                         # Exclude File Explorer shell navigation from being blamed unless nothing else exists
                         if ($hName -notmatch '^(explorer)$') {
-                            if (-not $byPid.ContainsKey($hPid)) {
-                                $byPid[$hPid] = [PSCustomObject]@{
+                            $key = $hName.ToLowerInvariant()
+                            if (-not $byName.ContainsKey($key)) {
+                                $byName[$key] = [PSCustomObject]@{
                                     ProcessId   = $hPid
                                     ProcessName = $hName
                                     Count       = 0
                                 }
                             }
-                            $byPid[$hPid].Count++
+                            $byName[$key].Count++
                         }
                     }
                 }
             }
-            foreach ($entry in $byPid.Values) {
+            foreach ($entry in $byName.Values) {
                 $isSys = if ($entry.ProcessName -match '^(lsass|services|csrss|system|svchost)$') { $true } else { $false }
                 $results.Add([PSCustomObject]@{
                     ProcessId   = $entry.ProcessId
@@ -602,11 +627,19 @@ function Get-FileLockingProcesses {
 
         # 2. Check processes whose Current Working Directory is inside this folder
         try {
-            $cwdProcs = [ProcessCwdReader]::FindProcessesInPath($resolved)
+            $cwdProcs = if ($null -ne $PreScannedCwds) {
+                $prefixLowCwd = $resolved.TrimEnd('\', '/').ToLowerInvariant()
+                $PreScannedCwds | Where-Object {
+                    $cLow = $_.Cwd.TrimEnd('\', '/').ToLowerInvariant()
+                    $cLow -eq $prefixLowCwd -or $cLow.StartsWith($prefixLowCwd + "\")
+                }
+            } else {
+                [ProcessCwdReader]::FindProcessesInPath($resolved)
+            }
             foreach ($cp in $cwdProcs) {
                 if ($cp.ProcessName -match '^explorer$') { continue }
                 $isSys = if ($cp.ProcessName -match '^(lsass|services|csrss|system|svchost)$') { $true } else { $false }
-                $exists = $results | Where-Object { $_.ProcessId -eq $cp.ProcessId }
+                $exists = $results | Where-Object { $_.ProcessId -eq $cp.ProcessId -or $_.ProcessName.ToLowerInvariant() -eq $cp.ProcessName.ToLowerInvariant() }
                 if (-not $exists) {
                     $results.Add([PSCustomObject]@{
                         ProcessId   = $cp.ProcessId
@@ -622,20 +655,28 @@ function Get-FileLockingProcesses {
 
         # 3. Check running processes whose CommandLine contains this folder or path
         try {
-            $matchingProcs = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
-                ($_.CommandLine -like "*$leafName*" -or $_.CommandLine -like "*$resolved*") -and
-                $_.ProcessId -ne $PID -and $_.Name -notmatch '^(explorer|svchost|csrss|lsass)\.exe$'
+            $procPool = if ($null -ne $PreScannedProcs) {
+                $PreScannedProcs
+            } else {
+                Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+                    $_.ProcessId -ne $PID -and $_.Name -notmatch '^(explorer|svchost|csrss|lsass)\.exe$'
+                }
+            }
+            $matchingProcs = $procPool | Where-Object {
+                ($_.CommandLine -like "*\$leafName*" -or $_.CommandLine -like "*/$leafName*" -or $_.CommandLine -like "*`"$leafName`"*") -or
+                ($_.CommandLine -like "*$resolved*")
             }
             foreach ($mp in $matchingProcs) {
-                $exists = $results | Where-Object { $_.ProcessId -eq $mp.ProcessId }
+                $cleanProcName = $mp.Name -replace '\.exe$', ''
+                $exists = $results | Where-Object { $_.ProcessId -eq $mp.ProcessId -or $_.ProcessName -eq $cleanProcName }
                 if (-not $exists) {
                     $results.Add([PSCustomObject]@{
                         ProcessId   = $mp.ProcessId
-                        ProcessName = $mp.Name
+                        ProcessName = $cleanProcName
                         FilePath    = $resolved
                         FileName    = $leafName
                         IsSystem    = $false
-                        LockMode    = "Folder In Use ($($mp.Name) PID: $($mp.ProcessId))"
+                        LockMode    = "Folder In Use ($cleanProcName PID: $($mp.ProcessId))"
                     })
                 }
             }

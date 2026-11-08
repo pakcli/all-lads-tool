@@ -3,23 +3,23 @@
 > **Context**: `file` / `all-lads-tool`  
 > **Script**: `script/file/detector-file-lock-process.ps1`  
 > **Adapter Engine**: `script/file/adapter/detector-file-lock-process.psm1`  
-> **Architecture Standard**: Conforms strictly to Brief `v01-03-02` (Foldering Structure, 1:1 Script-to-Docs Parity, Zero Markdown in `script/`).
+> **Architecture Standard**: Conforms strictly to Brief `[[brief/v01-03-02_foldering-structure-updated-stricly-no-markdown-in-script-and-docs-file-name-per-script.md|v01-03-02]]` and Brief `[[brief/v01-03-03_UNLOCKING-FILE-SCRIPT-FINALY-WORKING.md|v01-03-03]]` (1:1 Script-to-Docs Parity, Zero Markdown in `script/`).
 
 ---
 
 ## 1. Overview & Purpose
 
-When applications, background build jobs, language servers, or system indexing tools actively hold open handles to files, developers encounter sharing violations (`ERROR_SHARING_VIOLATION` `0x80070020` / `IOException`: *"The process cannot access the file because it is being used by another process"*).
+When applications, IDE file-watcher sidecars (`muninn-sidecar.exe`), background build jobs (`node.exe`, `esbuild.exe`), language servers (`language_server.exe`), or terminals actively hold open file or directory handles, developers encounter sharing violations (`ERROR_SHARING_VIOLATION` `0x80070020`) or Windows Explorer **"Folder In Use"** dialogs (`ERROR_ACCESS_DENIED` `0x80070005`).
 
-`detector-file-lock-process.ps1` provides an interactive, dual-mode diagnostics and resolution console:
-1. **Mode A (`App View`)**: Groups locked files by the holding Application and Process ID (PID), presenting file names, paths, lock modes, and safe non-destructive resolution actions (`Retry`, `Wait`, `Stage`, `Inspect`).
-2. **Mode B (`Drive & Directory Tree View`)**: Discovers all active drives (`C:`, `D:`, `E:`) and presents an interactive, collapsible directory tree highlighting files currently locked or under active processing.
+`detector-file-lock-process.ps1` provides an interactive, dual-mode diagnostics and unlocking suite:
+1. **Mode A (`Group by Application`)**: Groups locked files and folders by the holding Application and Process ID (`PID`), presenting resource names, masked paths, open handle counts / lock modes, and instant row actions (`[Reveal]`, `[Re-test]`, `[Unlock]`).
+2. **Mode B (`Group by Drive & Directory Tree`)**: Discovers all active drives (`C:`, `D:`, `E:`) dynamically and presents an interactive directory tree to select and inspect any target scope.
 
 ---
 
 ## 2. Command Line Arguments & Lapangan Parameters
 
-Conforming to `[[donot-ngada-ngada-exact-lapangan-variables]]`, the exact literal parameter signature is:
+Conforming to `[[skill/donot-ngada-ngada-exact-lapangan-variables.md|donot-ngada-ngada-exact-lapangan-variables]]`, the exact literal parameter signature in `script/file/detector-file-lock-process.ps1` is:
 
 ```powershell
 param (
@@ -38,79 +38,67 @@ param (
 
 | Parameter | Type | Default | Description |
 | :--- | :--- | :--- | :--- |
-| `-Mode` | String | `"CLI"` | Execution target: `"CLI"` (dashboard), `"Panel"` (WPF GUI), `"App"` (group by application), `"DriveTree"` (group by drive tree), or `"Inspect"` (single-run stdout). |
-| `-Path` | String | `""` | Optional specific file or folder path to inspect for locks. If omitted, scans current workspace or drives. |
+| `-Mode` | String | `"CLI"` | Execution target: `"CLI"` (terminal dashboard), `"Panel"` (WPF Dark Card GUI), `"App"` (group by application), `"DriveTree"` (group by drive tree), or `"Inspect"` (single-run stdout). |
+| `-Path` | String | `""` | Optional specific file or folder path to inspect for locks. If omitted, auto-discovers active locks across `trash-bin` and workspace directories. |
 | `-Panel` | Switch | `$false` | Shortcut switch to immediately launch the interactive WPF Card Panel window. |
 | `-Inspect`| Switch | `$false` | Shortcut switch for non-interactive diagnostics output. |
-| `-Json` | Switch | `$false` | Emits raw structured JSON diagnostic output (used in pipelines and automation). |
+| `-Json` | Switch | `$false` | Emits raw structured JSON diagnostic output (used with `-Inspect`). |
 
 ---
 
-## 3. Dual-Mode UI Specifications
+## 3. Detection & Unlocking Engine Architecture (`v01-03-03`)
 
-### Mode A: Group by Application (`App View`)
+### 3.1. 4-Tier Lock Attribution (`file-lock-inspector.psm1`)
+1. **Leaf File & Directory Move Prober (`Test-FileIsLocked`)**:
+   - **Leaf Files**: Probes exclusive write access via `[System.IO.File]::Open(..., FileShare.None)`.
+   - **Directories**: Probes atomic directory rename/move availability to catch Windows `"Folder In Use"` locks caused by open child handles or directory watchers.
+2. **Kernel Handle Table Scanner (`HandleScanOOP`)**:
+   - Opens a calibration `FileStream` and queries `NtQuerySystemInformation(64)` (`SystemExtendedHandleInformation`) in a single snapshot to resolve the exact `File` kernel `ObjectTypeIndex`.
+   - Filters strictly to `ObjectTypeIndex == fileTypeIndex` (never touching NamedPipe WaitHandles, EventWaitHandles, or ALPC ports, preventing `0xc000070a` crashes).
+   - Skips synchronous pipe access masks and resolves `GetFinalPathNameByHandle` on a background worker thread with a `150ms` timeout guard (`QueryWithTimeout`).
+   - Excludes `explorer.exe` shell navigation from false-positive lock attribution.
+3. **Remote Process PEB Working Directory Reader (`ProcessCwdReader`)**:
+   - Reads process PEB memory via `NtQueryInformationProcess` + `ReadProcessMemory` (`FindProcessesInPaths`) to identify terminals or shells whose Current Working Directory (`CWD`) is inside the locked folder.
+4. **Command-Line & Windows Restart Manager (`RestartManager.FileLockFinder`)**:
+   - Uses `rstrtmgr.dll` for leaf files and `Win32_Process` command-line matching for background worker processes.
 
-Presents a clear inventory of all running applications holding open file handles within the target scope:
-
-```text
-+----------------------------------------------------------------------------------------------------+
-| [FILE LOCK INSPECTOR] - MODE A: GROUP BY APPLICATION                              [Filter: code   ] |
-+----------------------------------------------------------------------------------------------------+
-| > Code.exe (PID: 14820) | Handles: 2 | Status: Shared Read / Write                                 |
-|   |-- package.json             | <workspace>/package.json                     | [Inspect] [Release]|
-|   |-- git-manage.ps1           | <workspace>/script/repo/git-manage.ps1       | [Inspect] [Release]|
-|                                                                                                    |
-| > node.exe (PID: 22104) | Handles: 1 | Status: Exclusive Write Lock (Conflict)                      |
-|   |-- build-output.log         | <workspace>/build-output.log                 | [Retry] [Stage] [X]|
-+----------------------------------------------------------------------------------------------------+
-| [R] Refresh  [TAB] Switch to Drive Tree  [P] Launch WPF Panel  [F] Filter  [Q] Exit                |
-+----------------------------------------------------------------------------------------------------+
-```
-
-### Mode B: Group by Drive & Directory Tree (`Drive Tree View`)
-
-Discovers system drives dynamically and renders an interactive, collapsible directory tree highlighting active locks:
-
-```text
-+----------------------------------------------------------------------------------------------------+
-| [FILE LOCK INSPECTOR] - MODE B: GROUP BY DRIVE & DIRECTORY TREE                   [Filter: .log   ] |
-+----------------------------------------------------------------------------------------------------+
-| [-] C:\ [OS System] (Free: 142 GB / 500 GB)                                                        |
-|     +-- Program Files/                                                                             |
-|     +-- Users/                                                                                     |
-| [-] D:\ [Workspace Alpha] (Free: 410 GB / 1 TB)                                                    |
-|     [-] 0pro/                                                                                      |
-|         [-] pakcli-plugin/                                                                         |
-|             * package.json            [LOCKED by Code.exe (PID: 14820)]                            |
-| [-] E:\ [Workspace Beta] (Free: 620 GB / 2 TB)                                                     |
-|     [-] proj/                                                                                      |
-|         [-] all-lads-tool/                                                                         |
-|             * build-output.log        [EXCLUSIVE LOCK by node.exe (PID: 22104)]                    |
-+----------------------------------------------------------------------------------------------------+
-| [ENTER] Expand/Collapse  [TAB] Switch to App View  [P] Launch WPF Panel  [R] Refresh  [Q] Exit      |
-+----------------------------------------------------------------------------------------------------+
-```
+### 3.2. Surgical Remote Handle Closing (`Unlock-FileOrFolder`)
+Clicking `[Unlock]` executes an 8-step non-destructive release sequence:
+1. **Remote Handle Closure (`DUPLICATE_CLOSE_SOURCE`)**: Calls `[HandleScanOOP]::CloseHandlesForPath($resolved)` using `DuplicateHandle(..., 0x00000001)` to directly close open file and directory watcher handles held inside the target path by processes like `muninn-sidecar.exe` without killing the IDE.
+2. **Explorer Folder Release**: Closes any open Windows Explorer windows pointing to the target folder via `Shell.Application`.
+3. **Immediate Fast-Path Verification**: Checks `Test-FileIsLocked`; returns `$true` immediately if the lock is already cleared.
+4. **Remaining Non-System Process Termination**: If still locked, terminates remaining non-critical processes holding handles or CWD inside the path (strictly protecting system processes and IDE hosts: `explorer`, `lsass`, `services`, `csrss`, `system`, `svchost`, `wininit`, `winlogon`, `dwm`, `antigravity`, `code`).
+5. **Attribute Normalization & Backoff Verification**: Clears read-only/system/hidden flags on the target root and verifies unlock status across `150ms`, `350ms`, and `700ms` backoff intervals.
 
 ---
 
-## 4. Conflict Resolution Strategy (Rule #01 Preservation Compliant)
+## 4. Dual-Mode UI Specifications
 
-When a locked file is detected during a pending modify/move/delete operation:
-1. **Never Kill Blindly**: The tool never kills processes autonomously.
-2. **Exponential Retry & Backoff**: Retries the file handle access up to 4 times (200ms, 500ms, 1000ms, 2000ms) to allow transient locks (e.g. search indexing, Antivirus scans) to clear.
-3. **Shadow Staging (`.pending-swap`)**: For modifications, provides an option to stage changes into a temporary file without corrupting the original.
-4. **Safe Process Termination**: If termination is explicitly requested by the user, validates that the target PID is not a critical system process (`explorer.exe`, `lsass.exe`, `services.exe`, `csrss.exe`) before asking for confirmation.
+### 4.1. WPF Dark Card Panel (`-Panel`)
+```text
++----------------------------------------------------------------------------------------------------------+
+| LOCK INSPECTOR - Active File Lock & Disk Activity [Drag to Move] [Hold to Reveal] [Mask: ON] [Refresh] X |
++----------------------------------------------------------------------------------------------------------+
+| Target Scope: [ E:\proj\trash-bin                                ] [Paste Clipboard] [Browse...] [Inspect]|
++----------------------------------------------------------------------------------------------------------+
+| [Mode A: Group by Application] [Mode B: Group by Drive & Directory Tree]          Filter: [            ] |
++----------------------------------------------------------------------------------------------------------+
+| APPLICATION / PID            FILE / FOLDER NAME     LOCKED RESOURCE PATH          LOCK MODE      ACTIONS |
++----------------------------------------------------------------------------------------------------------+
+| muninn-sidecar (PID: 10872)  my-video               E:\proj\trash-bin\my-video    79 Handle(s)   [Reveal] [Re-test] [Unlock] |
+| node (PID: 31832)            remotion               E:\proj\remotion              304 Handle(s)  [Reveal] [Re-test] [Unlock] |
++----------------------------------------------------------------------------------------------------------+
+```
 
-### 4.1. WPF Panel Features & Windows "Folder In Use" Detection
+- **Target Scope Toolbar**: Includes `[Paste Clipboard]`, `[Browse...]`, and `[Inspect Path]`, plus full window Drag & Drop support.
+- **Row Actions** (isolated per row via `$sender.Tag` context):
+  - `[Reveal]`: Selects the locked item in Windows File Explorer.
+  - `[Re-test]`: Re-checks `Test-FileIsLocked` and updates the badge to `Clear (Unlocked)` if released.
+  - `[Unlock]`: Runs `Unlock-FileOrFolder`, turning the status badge green (`Clear (Unlocked)`) and button to `Unlocked`.
+- **Privacy Masking (`Format-PrivacyMaskString`)**: Masks emails and user profile paths (`C:\Users\fa***`) to 2 visible characters by default (`Mask: ON (2-Letter)`), with ephemeral `Hold to Reveal` and session-only toggle.
 
-The WPF card panel (`-Panel`) provides interactive diagnostics for both leaf files and Windows directory locks:
-1. **Target Scope Toolbar**: Allows specifying any folder/file path with `[Inspect Path]`, `[Browse...]`, and `[Paste Clipboard]`.
-2. **Drag & Drop Support**: Dragging any folder or file from Windows File Explorer directly onto the Lock Inspector window automatically populates the target path and immediately runs lock inspection.
-3. **Dual-Engine Detection (Leaf Files + Directory Handles)**: Uses Windows Restart Manager for file-level handles and transient move/rename probe to catch Windows "Folder In Use" dialogs where directory handles are held by Windows Explorer or background indexers.
-4. **Action Controls**:
-   - `[Reveal]`: Reveals and selects the resource in Windows Explorer.
-   - `[Re-test]`: Instantly re-probes the resource lock status.
-   - `[Unlock]`: Unlocks the resource by terminating the holding application process or restarting the Windows Explorer shell to release exclusive directory handles, immediately updating the status badge to green (`Clear (Unlocked)`).
+### 4.2. CLI Dashboard (`-Mode CLI`)
+Interactive console view supporting `[TAB]` to toggle between `App` view and `DriveTree` view, `[R]` to refresh snapshot, `[P]` to open the WPF Panel, and `[Q]` to exit.
 
 ---
 
@@ -120,8 +108,8 @@ The WPF card panel (`-Panel`) provides interactive diagnostics for both leaf fil
 script/file/
 ├── detector-file-lock-process.ps1                 # Entry point CLI & WPF dispatcher
 └── adapter/
-    ├── detector-file-lock-process.psm1            # Master aggregator module
-    ├── file-lock-inspector.psm1                   # Windows Restart Manager P/Invoke prober
+    ├── detector-file-lock-process.psm1            # Master snapshot aggregator & batch scanner
+    ├── file-lock-inspector.psm1                   # HandleScanOOP, ProcessCwdReader, RestartManager & Unlock engine
     ├── drive-activity-scanner.psm1                # System drive discovery & lazy tree enumerator
     ├── lock-console-dashboard.psm1                # Interactive ANSI CLI dashboard renderer
     └── lock-panel-window.psm1                     # Interactive WPF dark card window host
@@ -131,6 +119,7 @@ script/file/
 
 ## 6. Verification & Invariants
 
-- **Rule #001**: Zero hardcoded drive letters; drives are resolved dynamically via `[System.IO.DriveInfo]::GetDrives()` and relative paths.
-- **Rule #01**: Zero unsolicited file or process removals.
-- **Serious Mode**: Zero emojis across CLI banners, table columns, and status logs.
+- **Rule #001**: Zero hardcoded user secrets; drives are resolved dynamically via `[System.IO.DriveInfo]::GetDrives()`.
+- **Rule #01**: Zero unsolicited file deletions.
+- **Rule #4**: Privacy 2-letter exposure masking active by default on all UI views; reveal state is never written to disk.
+- **Serious Mode**: Zero emojis across CLI banners, WPF controls, and logs.
