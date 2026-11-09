@@ -97,7 +97,10 @@ all-lads-tool
 		v01-03-04_repo-edit-commited-files-but-hidden-in-the-history-with-staged.md
 		v01-03-05_repo-edit-commited-files-all-commit-state.md
 		v01-04-00_universal-common-compiler-and-decompiler-architecture.md
+		v01-04-01_how-user-can-use-open-and-leverage-content-clipboard-and-dragndrop.md
 	docs
+		browser
+			activate-remote-debuging-cirtain-profile-name.md <--- 1:1 match for script/browser/activate-remote-debuging-cirtain-profile-name.ps1
 		repo
 			edit-commited-files-but-hidden-in-the-history-with-staged.md <--- 1:1 match for script/repo/edit-commited-files-but-hidden-in-the-history-with-staged.ps1
 			git-all-state-renamer-prefix-v.md                            <--- 1:1 match for script/repo/git-all-state-renamer-prefix-v.ps1
@@ -130,6 +133,11 @@ all-lads-tool
 		website
 			build-bundles.md
 	script
+		browser
+			activate-remote-debuging-cirtain-profile-name.ps1 <--- Multi-Browser Remote Debugging Launcher
+			adapter
+				activate-remote-debuging-cirtain-profile-name.json <--- Persisted Browser & Profile Options
+				chrome-launcher.psm1                             <--- Chromium Process & CDP Port Engine
 		repo
 			edit-commited-files-but-hidden-in-the-history-with-staged.ps1 <--- Historical Commit File Overwrite
 			git-all-state-renamer-prefix-v.ps1                            <--- Batch Prefix Renamer
@@ -167,6 +175,8 @@ all-lads-tool
 			compiler.ps1                                                 <--- Standalone Compiler & Bundler
 			decompiler.ps1                                               <--- Standalone Unbundler & Slicer
 			adapter
+				compiler-engine.psm1                                         <--- AST Code Packaging Engine
+				decompiler-engine.psm1                                       <--- AST Unbundling & Slicing Engine
 				path-normalizer.psm1                                         <--- Universal Drag-and-Drop Sanitizer
 				run-json-bridge.psm1                                         <--- Universal _run.json Synchronizer
 				version-resolver.psm1                                        <--- Universal Runtime & Version Detector
@@ -201,12 +211,14 @@ all-lads-tool
 	GUIDE.md
 ```
 
-### 🏛️ Ringkasan 5 Domain Contexts:
+### Ringkasan Domain Contexts:
 1. **`blender/` (3D & Modeling Pipeline)**: Otomasi mesh cleaning, FBX/glTF batch export, dan material baking via Blender Python API.
 2. **`unity/` (Game Engine & Editor Tools)**: C# Editor utilities, asset post-processors, meta-file cleaners, dan build triggers.
 3. **`repo/` (Git & Repository Orchestration)**: Universal Git Manager (`git-manage.ps1` PowerShell & `git-manage.sh` Git Bash) dilengkapi Git Clone Wizard interaktif (HTTPS, SSH, GitHub CLI, owner/repo slug) dengan pre-flight briefed overview card dan konfirmasi eksplisit `[y/N]`; Safe Checkpoint Rollback (`git-checkpoint-rollback.ps1` & `git-checkpoint-rollback.sh`) yang memundurkan history via `git reset --soft` menjaga 100% kodingan aman di Staging Area; Historical Commit File Overwrite Engine (`edit-commited-files-but-hidden-in-the-history-with-staged.ps1`) dengan 3-Step No-Default-Enter architecture (Step 1 repo `1..20` + `more`, Step 2 `commit id / more / L / all` [All Commit State], Step 3 5 Opsi `1..5` dengan folder/file custom scope & new-file gate); Branch Renamer (`git-branch-rename.ps1`); Batch Prefix Renamer (`git-all-state-renamer-prefix-v.ps1`); Commit Diff & Sandbox Size Analyzer (`git-diff-commits.ps1`); Remote Owner Identity Reconfig (`git-reconfig-identity.ps1`); Reflog Commit Recovery (`git-recover.ps1`); Historical Commit Message Renamer (`git-rename-commit.ps1`); Submodule Hub (`git-submodule.ps1`); dan Non-destructive Robocopy Sync (`git-sync-from-dir.ps1`).
 4. **`website/` (Web Architecture & Frontend)**: Bundling ES module, SCSS/CSS compiler, DOM accessibility validator, dan Playwright snapshot engine.
 5. **`file/` (File & Data Transformation)**: Universal 4-Mode Clipboard Suite (`PolyClip` / `detector-clipboard-4-mode.ps1`) dengan Unified 5-Column Architecture, Git Multi-Protocol Widget (`[ HTTPS | SSH | GitHub CLI ]`), integrasi native clipboard VS Code Explorer (`text/uri-list`, `FileNameW`), File Lock Inspector & Unlocker (`detector-file-lock-process.ps1`) dengan split action `[Only Instance]` vs `[Unlock All]`, Bidirectional CSV $\leftrightarrow$ YAML Frontmatter bridge, pemecah/penggabung file (`file-merge` / `file-split`), dan PowerShell dry-run simulation engine.
+6. **`common/` (Universal Common Utilities & Architecture)**: Standalone AST-based Compiler (`compiler.ps1`) dan Decompiler (`decompiler.ps1`) didukung adapter modular (`compiler-engine.psm1`, `decompiler-engine.psm1`, `path-normalizer.psm1`, `run-json-bridge.psm1`, `version-resolver.psm1`) untuk build mandiri tanpa dependensi luar.
+7. **`browser/` (Chromium Remote Debugging & Isolation)**: Multi-Browser Remote Debugging Suite (`activate-remote-debuging-cirtain-profile-name.ps1`) mendukung Google Chrome, Microsoft Edge, Brave Browser, dan Custom Path dengan isolasi profil dedikasi (`ai-agent`), deteksi ketersediaan profil interaktif (`1. create`, `2. anothername`, `3. cancel`), dan CDP port launcher.
 
 ---
 
@@ -250,6 +262,12 @@ all-lads-tool
 
    # Jalankan simulasi Dry-Run pada skrip apapun
    .\script\file\dry-run.ps1 -ScriptPath ".\script\repo\git-branch-rename.ps1"
+
+   # Jalankan Multi-Browser Remote Debugging Launcher (Profil Terisolasi ai-agent)
+   .\script\browser\activate-remote-debuging-cirtain-profile-name.ps1
+
+   # Jalankan Standalone AST-based Compiler / Bundler
+   .\script\common\compiler.ps1 -Source ".\script\browser\activate-remote-debuging-cirtain-profile-name.ps1" -DryRun
    ```
 
 *Untuk panduan lengkap setiap perintah dan parameter, silakan baca **[GUIDE.md](GUIDE.md)**.*

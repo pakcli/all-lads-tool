@@ -27,12 +27,14 @@ tags:
    - [Mode 1: Universal Launcher (`_run.ps1`)](#mode-1-universal-launcher-_runps1)
    - [Mode 2: Central Cockpit (`_mainmenu.ps1`)](#mode-2-central-cockpit-_mainmenups1)
    - [Mode 3: Direct Standalone CLI (`_stand`)](#mode-3-direct-standalone-cli-_stand)
-4. [Panduan Operasional 5 Contexts](#4-panduan-operasional-5-contexts)
+4. [Panduan Operasional Domain Contexts](#4-panduan-operasional-domain-contexts)
    - [Context: File (`script/file/`)](#context-file-scriptfile)
    - [Context: Repo (`script/repo/`)](#context-repo-scriptrepo)
    - [Context: Website (`script/website/`)](#context-website-scriptwebsite)
    - [Context: Blender (`script/blender/`)](#context-blender-scriptblender)
    - [Context: Unity (`script/unity/`)](#context-unity-scriptunity)
+   - [Context: Common (`script/common/`)](#context-common-scriptcommon)
+   - [Context: Browser (`script/browser/`)](#context-browser-scriptbrowser)
 5. [Sistem Versioned Dependencies Checker](#5-sistem-versioned-dependencies-checker)
 6. [Simulasi Dry-Run (Protokol Keselamatan)](#6-simulasi-dry-run-protokol-keselamatan)
 7. [Troubleshooting & Solusi](#7-troubleshooting--solusi)
@@ -208,7 +210,7 @@ Fokus pada version control, keamanan riwayat git, dan otomasi branching.
   .\script\repo\edit-commited-files-but-hidden-in-the-history-with-staged.ps1
 
   # Eksekusi non-interaktif terarah (CI/CD atau scripting)
-  .\script\repo\edit-commited-files-but-hidden-in-the-history-with-staged.ps1 -Repo "E:\proj\my-repo" -CommitId "e52f506" -Option 1 -Yes
+  .\script\repo\edit-commited-files-but-hidden-in-the-history-with-staged.ps1 -Repo "<workspace_root>/my-repo" -CommitId "e52f506" -Option 1 -Yes
   ```
   **Alur Interaktif 3-Step (`Strict No-Default-Enter`)**:
   1. **Step 1: Target Repo**: Menampilkan `[1..20]` repositori Git yang terdeteksi di workspace (ketik `more` untuk `+20` berikutnya) atau menerima full path direktori.
@@ -221,7 +223,7 @@ Fokus pada version control, keamanan riwayat git, dan otomasi branching.
      - `[ 2 ]`: Overwrite staged files | state: `all` (seluruh file staged `M`, `A`, `D`, `R`, `C`).
      - `[ 3 ]`: Overwrite all files (staged + working tree) | state: `modified` (hanya tracked `M`).
      - `[ 4 ]`: Overwrite all files (staged + working tree) | state: `all` (seluruh perubahan termasuk untracked `??`).
-     - `[ 5 ]`: Custom path (menerima Full Drive Path `E:\...`, Repo-Relative Path `brief\...`, atau path dengan prefix repo `repo\brief\...`). Otomatis mendeteksi Folder Scope vs. Exact Single-File Scope. Jika mendeteksi file baru (`??`/`A`), memunculkan sub-prompt: `1. all`, `2. modified only`, atau `3. cancel`.
+     - `[ 5 ]`: Custom path (menerima Full Drive Path `<workspace_root>/...`, Repo-Relative Path `brief/...`, atau path dengan prefix repo `repo/brief/...`). Otomatis mendeteksi Folder Scope vs. Exact Single-File Scope. Jika mendeteksi file baru (`??`/`A`), memunculkan sub-prompt: `1. all`, `2. modified only`, atau `3. cancel`.
   4. **Step 4: Pre-Flight Briefed Overview**: Menampilkan kartu ringkasan lengkap dan mewajibkan konfirmasi eksplisit `yes` sebelum history diubah.
   5. **Safety Rollback & State Persistence**: Menyimpan rollback ref `refs/backup/commit-overwrite-<timestamp>` dan mencatat konfigurasi ke `script/repo/adapter/edit-commited-files-but-hidden-in-the-history-with-staged.json` (mengikuti `save-option-as-exact-executor-name-json`).
 
@@ -283,7 +285,7 @@ Fokus pada version control, keamanan riwayat git, dan otomasi branching.
 - **`git-sync-from-dir.ps1` (Git Sync From Directory)**:
   Menyalin file dari direktori sumber ke repositori target menggunakan Robocopy dengan isolasi total folder `.git` (riwayat commit dan remote target tidak pernah tersentuh).
   ```powershell
-  .\script\repo\git-sync-from-dir.ps1 -TargetRepo "E:\proj\repoA" -SourceDir "E:\backup\code"
+  .\script\repo\git-sync-from-dir.ps1 -TargetRepo "<workspace_root>/repoA" -SourceDir "<backup_dir>/code"
   ```
 
 ### Context: Website (`script/website/`)
@@ -308,6 +310,50 @@ Fokus pada sinkronisasi aset ke dalam engine game.
 - Importer otomatis dan sanitasi file metadata (`.meta`).
 - Automasi build headless (`-batchmode -executeMethod`).
 
+### Context: Common (`script/common/`)
+Fokus pada utilitas modular universal lintas context, kompilasi AST, dan dekompilasi mandiri.
+
+- **`compiler.ps1` (Universal Modular Compiler & Bundler)**:
+  Mem-bundle skrip runner utama dan adapter-adapternya menjadi satu file executable standalone (`_stand.ps1`) menggunakan PowerShell AST analysis tanpa merusak sintaks asli.
+  ```powershell
+  # Compile skrip secara dry-run (simulasi)
+  .\script\common\compiler.ps1 -Source ".\script\browser\activate-remote-debuging-cirtain-profile-name.ps1" -DryRun
+
+  # Compile dan simpan ke file standalone target
+  .\script\common\compiler.ps1 -Source ".\script\browser\activate-remote-debuging-cirtain-profile-name.ps1" -Output ".\dist\browser-debug_stand.ps1"
+  ```
+  **Fitur Utama**:
+  1. **AST-Based Import Extraction**: Menggunakan `[System.Management.Automation.Language.Parser]` untuk membedah `Import-Module` secara akurat.
+  2. **Scoped Module Inlining**: Membungkus setiap modul dalam block `& { ... }` dengan deklarasi boundary `# [STANDALONE-MODULE: <name>]`.
+  3. **Zero Hardcoded Paths**: Terintegrasi dengan adapter `path-normalizer.psm1` dan `run-json-bridge.psm1`.
+
+- **`decompiler.ps1` (Universal Standalone Decompiler)**:
+  Mengekstrak kembali skrip standalone hasil kompilasi menjadi modul-modul modular aslinya di folder `adapter/` secara deterministik.
+  ```powershell
+  .\script\common\decompiler.ps1 -Source ".\dist\browser-debug_stand.ps1" -TargetDir ".\script\unpacked"
+  ```
+
+### Context: Browser (`script/browser/`)
+Fokus pada otomasi penjelajah web, isolasi profil peramban, dan debugging jarak jauh berbasis CDP (Chrome DevTools Protocol).
+
+- **`activate-remote-debuging-cirtain-profile-name.ps1` (Multi-Browser Remote Debugging Launcher)**:
+  Meluncurkan instance peramban Chromium dengan remote debugging port aktif (`--remote-debugging-port=9222`) dan direktori profil terisolasi, menjaga keamanan sesi personal pengguna dari risiko modifikasi atau kebocoran kredensial.
+  ```powershell
+  # Menjalankan interaktif (Default browser: Chrome, Default profile: ai-agent)
+  .\script\browser\activate-remote-debuging-cirtain-profile-name.ps1
+
+  # Eksekusi dengan parameter spesifik
+  .\script\browser\activate-remote-debuging-cirtain-profile-name.ps1 -Browser edge -Profile "ai-agent" -Port 9222
+  ```
+  **Fitur Utama**:
+  1. **Multi-Browser Chromium Selector**: Mendukung Google Chrome (`chrome`), Microsoft Edge (`msedge` / `edge`), Brave Browser (`brave`), dan path kustom yang dapat ditentukan pengguna secara dinamis (default pada Enter = Chrome).
+  2. **Profile Existence Gate (3-Opsi Interaktif)**: Saat profil yang diminta belum terdaftar di direktori data browser, skrip memunculkan menu konfirmasi 3-pilihan yang jelas:
+     - `1. create`: Membuat direktori profil baru dan langsung melanjutkan peluncuran.
+     - `2. anothername`: Meminta nama profil lain secara interaktif.
+     - `3. cancel`: Membatalkan eksekusi dengan aman tanpa menyentuh sistem.
+  3. **Dedicated User Data Isolation**: Menyimpan cache dan sesi di folder terpisah (`User Data - <profile>`), memungkinkan browser agen berjalan berdampingan (*side-by-side*) dengan browser harian pengguna tanpa tab clobbering atau kunci file (*process lock*).
+  4. **State Persistence**: Konfigurasi peramban dan riwayat profil terakhir disimpan secara otomatis di `script/browser/adapter/activate-remote-debuging-cirtain-profile-name.json`.
+
 ---
 
 ## 5. Sistem Versioned Adapter Architecture
@@ -315,6 +361,8 @@ Fokus pada sinkronisasi aset ke dalam engine game.
 Sesuai `brief/v01-03-02`, penanganan multi-versi software dibungkus di dalam subfolder `adapter/` pada setiap context, bukan lagi menggunakan modul checker bersarang:
 - **`script/repo/adapter/`**: Adapter versi Git (`v02-30-00.psm1`, `v02-40-00.psm1`).
 - **`script/file/adapter/`**: Adapter fungsional PolyClip 4-mode (`detector-clipboard-4-mode.psm1`, `clipboard-jit-inspector.psm1`, dsb.).
+- **`script/common/adapter/`**: Adapter AST packaging (`compiler-engine.psm1`, `decompiler-engine.psm1`, `path-normalizer.psm1`, `run-json-bridge.psm1`, `version-resolver.psm1`).
+- **`script/browser/adapter/`**: Adapter peluncur Chromium dan verifikasi port CDP (`chrome-launcher.psm1`).
 - **`script/blender/adapter/`**: Adapter versi Blender (`v03-06-00.py`, `v04-02-00.py`).
 - **`script/unity/adapter/`**: Adapter versi Unity (`v20-21-03.cs`, `v20-22-03.cs`).
 - **`script/website/adapter/`**: Adapter versi Node.js (`v18-00-00.js`, `v20-00-00.js`).
@@ -360,9 +408,9 @@ Jika teks yang disalin mengandung dump objek PowerShell (`[string]@{Id=...}`):
 - Engine otomatis mengeksekusi `Clean-PlainText` dan `Unwrap-Mode1Text` untuk membuang bungkus serialisasi dan tanda kutip, sehingga cell `CONTENT` selalu menampilkan teks asli secara bersih.
 
 ### 6. Opsi 5 Custom Path Tertolak / 0 File Terdeteksi pada Tab Completion
-Terjadi saat pengembang melakukan tab-completion path dari folder induk workspace (misal di `E:\proj>` mengetik `web-app_...\brief\file.md`):
+Terjadi saat pengembang melakukan tab-completion path dari folder induk workspace (misal di `<workspace_root>>` mengetik `target-repo/brief/file.md`):
 - **Penyebab**: Path yang dimasukkan membawa nama folder repositori sebagai prefix, menyebabkan pathspec dobel.
-- **Solusi**: Adapter `Resolve-CustomScopeTarget` secara otomatis mendeteksi dan memotong nama folder repo, serta mendukung Full Drive Path (`E:\...`), Repo-Relative Path (`brief\...`), maupun CWD-Relative Path dengan aman.
+- **Solusi**: Adapter `Resolve-CustomScopeTarget` secara otomatis mendeteksi dan memotong nama folder repo, serta mendukung Full Drive Path (`<workspace_root>/...`), Repo-Relative Path (`brief/...`), maupun CWD-Relative Path dengan aman.
 
 ### 7. PowerShell 5.1 Parser Error pada Karakter Tipografi Non-ASCII
 Terjadi di Windows PowerShell 5.1 jika file skrip atau adapter `.psm1` mengandung karakter UTF-8 khusus seperti em-dash (`—` / `0xE2 0x80 0x94`):

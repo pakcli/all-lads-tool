@@ -32,7 +32,7 @@ cons:
 > 2. **The 2-Letter Exposure Rule**:
 >    - **Emails**: Exactly 2 first letters before `@` and 2 first letters after `@` remain visible, followed by `***` (e.g. `us***@do***.com`).
 >    - **Usernames & Handles**: Exactly 2 first characters visible + `***` (e.g. `pa***`).
->    - **User Profile Paths**: Exactly 2 characters of the OS user folder visible (e.g. `C:\Users\fs***\...`).
+>    - **User Profile Paths**: Exactly 2 characters of the OS user folder visible (e.g. `C:\Users\us***\...`).
 > 3. **Zero Hardcoded Data**: Masking must be 100% algorithmic via generic regex. NEVER hardcode specific email addresses, usernames, or domains into filters or scripts.
 > 4. **Zero JSON Persistence**: Unmasking is strictly ephemeral. The reveal state MUST NEVER be saved, serialized, or persisted to JSON files or disk configuration.
 
@@ -88,7 +88,7 @@ Under this protocol, **visibility is an explicit, temporary user action**, never
 | Context | VIOLATION: Exposed / Hardcoded | COMPLIANCE: 2-Letter Protocol |
 | :--- | :--- | :--- |
 | **Initial Load** | Rendering `dcalibri@gmail.com - Google Drive` in plain text | Rendering `dc***@gm***.com - Google Drive` by default |
-| **User Profile Paths** | Displaying `C:\Users\fsl\AppData\...` | Displaying `C:\Users\fs***\AppData\...` by default |
+| **User Profile Paths** | Displaying `C:\Users\username\AppData\...` | Displaying `C:\Users\us***\AppData\...` by default |
 | **Regex Implementation** | Hardcoding `if ($str -match 'gmail.com')` | Using generic email token regex matching any valid domain |
 | **Unmasking Trigger** | Clicking unmask and saving `isMasked: false` to `config.json` | Holding unmask in memory; resetting on next window launch |
 | **CLI Status Output** | Outputting raw user email in headless stdout logs | Masking to 2-letter tokens unless explicit `-Unmask` flag passed |

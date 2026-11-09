@@ -176,7 +176,7 @@ This brief establishes the canonical 3-tier Git branch topology and linguistic r
    - **Tone**: **Casual & Formal English** (approachable, clear, and direct, yet technically rigorous and precise).
    - **Identifiers**: Flexible (*bebas*) naming styles (camelCase, kebab-case, PascalCase), but 100% English vocabulary.
 2. **`main-<username>` (Personal Developer Sandboxes)**:
-   - Personal developer branches (e.g. `main-pakcli`, `main-fsl`) for uncommitted working-tree experimentation and rapid prototyping before merging into `main`.
+   - Personal developer branches (e.g. `main-pakcli`, `main-dev`) for uncommitted working-tree experimentation and rapid prototyping before merging into `main`.
 3. **`lang-<language>` (Localization Branches)**:
    - **Language**: Strictly in that target language (*strictly with that bahasa*, e.g. `lang-id-id` in Bahasa Indonesia, `lang-ja` in Japanese).
    - **Tone**: **Casual-Formalist** in that specific language (santai namun formal, baku, dan lugas).
@@ -198,7 +198,7 @@ This brief establishes the canonical 3-tier Git branch topology and linguistic r
 |  - Stability         : Production-ready, passes all CI tests                  |
 |                                                                               |
 |  [ 2. main-<username> ] : Personal Developer Sandboxes                        |
-|  - Examples          : main-pakcli, main-fsl, main-lead                       |
+|  - Examples          : main-pakcli, main-dev, main-lead                       |
 |  - Role              : Rapid iteration, pre-commit staging, personal sandbox  |
 |  - Sync Invariant    : Must regularly pull/merge from main to prevent drift   |
 |                                                                               |
@@ -326,7 +326,7 @@ Jalankan skrip langsung dari terminal Anda:
       
       # Canonical Branch Patterns:
       # 1. main
-      # 2. main-<username> (e.g. main-pakcli, main-fsl)
+      # 2. main-<username> (e.g. main-pakcli, main-dev)
       # 3. lang-<language> (e.g. lang-en-us, lang-id-id, lang-ja)
       # 4. fn-<feature>     (e.g. fn-3d-editor, fn-file-viewer)
       # 5. bn-<feature>     (e.g. bn-auth-service, bn-sync-engine)
